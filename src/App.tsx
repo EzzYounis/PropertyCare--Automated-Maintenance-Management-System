@@ -10,6 +10,13 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 
+// Import page components
+import { TenantMaintenance } from "@/components/pages/tenant/TenantMaintenance";
+import { TenantPayments } from "@/components/pages/tenant/TenantPayments";
+import { TenantMessages } from "@/components/pages/tenant/TenantMessages";
+import { AgentTickets } from "@/components/pages/agent/AgentTickets";
+import { AgentWorkers } from "@/components/pages/agent/AgentWorkers";
+
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
@@ -32,16 +39,32 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      {/* Placeholder routes for role-specific features */}
       <Route
         path="/maintenance"
         element={
           <ProtectedRoute>
             <Layout>
-              <div className="text-center p-8">
-                <h2 className="text-2xl font-bold mb-4">Maintenance</h2>
-                <p className="text-muted-foreground">Feature coming soon...</p>
-              </div>
+              <TenantMaintenance />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tickets"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentTickets />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/workers"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentWorkers />
             </Layout>
           </ProtectedRoute>
         }
@@ -51,10 +74,7 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Layout>
-              <div className="text-center p-8">
-                <h2 className="text-2xl font-bold mb-4">Payments</h2>
-                <p className="text-muted-foreground">Feature coming soon...</p>
-              </div>
+              <TenantPayments />
             </Layout>
           </ProtectedRoute>
         }
@@ -64,8 +84,44 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Layout>
+              <TenantMessages />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/properties"
+        element={
+          <ProtectedRoute>
+            <Layout>
               <div className="text-center p-8">
-                <h2 className="text-2xl font-bold mb-4">Messages</h2>
+                <h2 className="text-2xl font-bold mb-4">Properties</h2>
+                <p className="text-muted-foreground">Feature coming soon...</p>
+              </div>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <div className="text-center p-8">
+                <h2 className="text-2xl font-bold mb-4">Analytics</h2>
+                <p className="text-muted-foreground">Feature coming soon...</p>
+              </div>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <div className="text-center p-8">
+                <h2 className="text-2xl font-bold mb-4">Settings</h2>
                 <p className="text-muted-foreground">Feature coming soon...</p>
               </div>
             </Layout>
