@@ -359,115 +359,136 @@ export const AgentDashboard = () => {
 
       {/* Ticket Details Modal */}
       <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Ticket Details</DialogTitle>
-            <DialogDescription>
-              Complete information about this maintenance ticket
-            </DialogDescription>
+            <DialogTitle>Ticket Details - #{selectedTicket?.id}</DialogTitle>
           </DialogHeader>
           
           {selectedTicket && (
-            <div className="space-y-6">
-              {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-8">
+              {/* Left Column */}
+              <div className="space-y-6">
+                {/* Issue Information */}
                 <div>
-                  <h3 className="font-semibold mb-4">Issue Information</h3>
+                  <h3 className="text-lg font-semibold mb-4">Issue Information</h3>
                   <div className="space-y-3">
                     <div>
-                      <Label>Category</Label>
-                      <p className="text-sm">{selectedTicket.category}</p>
+                      <Label className="text-sm font-medium">Title:</Label>
+                      <p className="text-sm mt-1">{selectedTicket.title}</p>
                     </div>
                     <div>
-                      <Label>Title</Label>
-                      <p className="text-sm">{selectedTicket.title}</p>
+                      <Label className="text-sm font-medium">Description:</Label>
+                      <p className="text-sm mt-1">{selectedTicket.description}</p>
                     </div>
-                    <div>
-                      <Label>Description</Label>
-                      <p className="text-sm">{selectedTicket.description}</p>
-                    </div>
-                    <div>
-                      <Label>Priority</Label>
-                      <Badge className={selectedTicket.priorityColor}>
-                        {selectedTicket.priority}
-                      </Badge>
+                    <div className="flex gap-4">
+                      <div>
+                        <Label className="text-sm font-medium">Priority:</Label>
+                        <Badge className={`mt-1 ${selectedTicket.priorityColor}`}>
+                          {selectedTicket.priority} Priority
+                        </Badge>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium">Status:</Label>
+                        <Badge className={`mt-1 ${selectedTicket.statusColor}`}>
+                          {selectedTicket.status}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 </div>
-                
+
+                {/* Contact Information */}
                 <div>
-                  <h3 className="font-semibold mb-4">Contact Information</h3>
-                  <div className="space-y-3">
+                  <h3 className="text-lg font-semibold mb-4">Contact Information</h3>
+                  <div className="space-y-4">
                     <div>
-                      <Label>Property Address</Label>
-                      <p className="text-sm">{selectedTicket.propertyAddress}</p>
+                      <Label className="text-sm font-medium">Tenant:</Label>
+                      <p className="text-sm mt-1">{selectedTicket.tenantName}</p>
+                      <p className="text-sm text-muted-foreground">📞 {selectedTicket.phoneNumber}</p>
+                      <p className="text-sm text-muted-foreground">✉️ sarah.johnson@email.com</p>
                     </div>
                     <div>
-                      <Label>Tenant Name</Label>
-                      <p className="text-sm">{selectedTicket.tenantName}</p>
+                      <Label className="text-sm font-medium">Landlord:</Label>
+                      <p className="text-sm mt-1">Michael Brown</p>
+                      <p className="text-sm text-muted-foreground">📞 +44 7700 987654</p>
+                      <p className="text-sm text-muted-foreground">✉️ michael.brown@email.com</p>
                     </div>
                     <div>
-                      <Label>Phone Number</Label>
-                      <p className="text-sm">{selectedTicket.phoneNumber}</p>
-                    </div>
-                    <div>
-                      <Label>Status</Label>
-                      <Badge className={selectedTicket.statusColor}>
-                        {selectedTicket.status}
-                      </Badge>
+                      <Label className="text-sm font-medium">Property:</Label>
+                      <p className="text-sm mt-1">📍 {selectedTicket.propertyAddress}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Photos/Videos Section */}
-              <div>
-                <h3 className="font-semibold mb-4">Photos & Videos</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <p className="text-sm text-muted-foreground">No photos uploaded yet</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Milestones */}
-              <div>
-                <h3 className="font-semibold mb-4">Milestones</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Clock className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Ticket Reported</p>
-                      <p className="text-xs text-muted-foreground">{selectedTicket.claimedDate}</p>
+              {/* Right Column */}
+              <div className="space-y-6">
+                {/* Progress Timeline */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Progress Timeline</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="w-4 h-4 text-yellow-500" />
+                      <span className="text-sm font-medium">AI Prediction</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm">Estimated Cost</Label>
+                        <p className="text-lg font-semibold">£450.00-650.00</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm">Estimated Time</Label>
+                        <p className="text-lg font-semibold">2-4 hours</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Notes Section */}
-              <div>
-                <h3 className="font-semibold mb-4">Notes</h3>
-                <Textarea
-                  placeholder="Add notes about this ticket..."
-                  className="min-h-24"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t">
-                <Button variant="outline" onClick={() => setSelectedTicket(null)}>
-                  Close
-                </Button>
-                {selectedTicket.actions.includes('claim') && (
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => {
-                      handleClaimTicket(selectedTicket.id);
-                      setSelectedTicket(null);
-                    }}
-                  >
-                    Claim Ticket
-                  </Button>
+                {/* Worker Quote & Approval (for assigned tickets) */}
+                {selectedTicket.status !== 'Open' && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Worker Quote & Approval</h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-sm">Worker Quote - Cost</Label>
+                          <p className="text-lg font-semibold">£75.00</p>
+                        </div>
+                        <div>
+                          <Label className="text-sm">Worker Quote - Time</Label>
+                          <p className="text-lg font-semibold">0 hours 45 min</p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Quote submitted 34 minutes ago</p>
+                      
+                      <div>
+                        <Label className="text-sm">Landlord Approval:</Label>
+                        <Badge className="ml-2 bg-green-100 text-green-700">✓ Approved</Badge>
+                        <p className="text-sm text-muted-foreground mt-1">Approved 30 minutes ago</p>
+                      </div>
+                    </div>
+                  </div>
                 )}
+
+                {/* Actions */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Actions</h3>
+                  <Button variant="outline" className="w-full mb-3">
+                    💬 Message Tenant
+                  </Button>
+                </div>
+
+                {/* Internal Notes */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Internal Notes</h3>
+                  <Textarea
+                    placeholder="Add internal note..."
+                    className="min-h-24 mb-3"
+                  />
+                  <Button variant="outline" size="sm">
+                    + Add Note
+                  </Button>
+                </div>
               </div>
             </div>
           )}
