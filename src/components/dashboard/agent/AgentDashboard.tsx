@@ -1,243 +1,478 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { 
   Ticket, 
-  Users, 
-  DollarSign, 
-  Clock,
-  AlertTriangle,
+  Search, 
+  Filter, 
+  Clock, 
+  AlertTriangle, 
   CheckCircle,
-  TrendingUp,
-  Wrench
+  Wrench,
+  User,
+  Calendar,
+  DollarSign,
+  Plus,
+  Eye,
+  UserPlus,
+  Zap,
+  Phone
 } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+
+// Mock data for tickets
+const mockTickets = [
+  {
+    id: 1,
+    category: 'Heating & Boiler',
+    title: 'Heating System Failure',
+    description: 'Boiler not working, no heat',
+    propertyAddress: '45 Baker Street, London NW1 6XE',
+    tenantName: 'Sarah Johnson',
+    phoneNumber: '+44 7700 123456',
+    priority: 'Urgent',
+    status: 'Open',
+    assignedWorker: 'Not assigned',
+    claimedBy: 'Not claimed',
+    claimedDate: '8 minutes ago',
+    actions: ['view', 'claim'],
+    categoryColor: 'bg-orange-100 text-orange-700',
+    priorityColor: 'bg-red-100 text-red-700',
+    statusColor: 'bg-blue-100 text-blue-700'
+  },
+  {
+    id: 2,
+    category: 'Plumbing',
+    title: 'Kitchen Sink Leak',
+    description: 'Water dripping from kitchen sink',
+    propertyAddress: '78 High Street, London N1 2AB',
+    tenantName: 'Emma Wilson',
+    phoneNumber: '+44 7700 234567',
+    priority: 'Medium',
+    status: 'Claimed',
+    assignedWorker: 'Sarah Davis Electrician',
+    claimedBy: 'Michael Brown',
+    claimedDate: '11 minutes ago',
+    actions: ['view', 'assign', 'quickAssign'],
+    categoryColor: 'bg-blue-100 text-blue-700',
+    priorityColor: 'bg-yellow-100 text-yellow-700',
+    statusColor: 'bg-gray-100 text-gray-700'
+  },
+  {
+    id: 3,
+    category: 'Electrical',
+    title: 'Electrical Outlet Not Working',
+    description: 'Bedroom power outlet needs repair',
+    propertyAddress: '156 Cambridge Road, London E2 7QB',
+    tenantName: 'Michael Chen',
+    phoneNumber: '+44 7700 456789',
+    priority: 'High',
+    status: 'In progress',
+    assignedWorker: 'David Wilson Kitchen Specialist',
+    claimedBy: 'Emma Wilson',
+    claimedDate: '16 minutes ago',
+    actions: ['view'],
+    categoryColor: 'bg-yellow-100 text-yellow-700',
+    priorityColor: 'bg-orange-100 text-orange-700',
+    statusColor: 'bg-orange-100 text-orange-700'
+  },
+  {
+    id: 4,
+    category: 'General',
+    title: 'Squeaky Door Hinges',
+    description: 'Front door hinges making noise',
+    propertyAddress: '92 Queen Street, London SW1 3CD',
+    tenantName: 'Robert Taylor',
+    phoneNumber: '+44 7700 345678',
+    priority: 'Low',
+    status: 'Open',
+    assignedWorker: 'Not assigned',
+    claimedBy: 'Not claimed',
+    claimedDate: '43 minutes ago',
+    actions: ['view', 'claim'],
+    categoryColor: 'bg-gray-100 text-gray-700',
+    priorityColor: 'bg-green-100 text-green-700',
+    statusColor: 'bg-blue-100 text-blue-700'
+  }
+];
 
 export const AgentDashboard = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All Categories');
+  const [priorityFilter, setPriorityFilter] = useState('All Priorities');
+  const [statusFilter, setStatusFilter] = useState('All Statuses');
+  const [addressFilter, setAddressFilter] = useState('');
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const { toast } = useToast();
+
+  const handleClaimTicket = (ticketId: number) => {
+    toast({
+      title: "Ticket Claimed",
+      description: "You have successfully claimed this ticket.",
+    });
+  };
+
+  const handleQuickAssign = (ticketId: number) => {
+    toast({
+      title: "Worker Assigned",
+      description: "Your favorite worker has been automatically assigned to this ticket.",
+    });
+  };
+
+  const handleAssignWorker = (ticketId: number) => {
+    toast({
+      title: "Worker Assignment",
+      description: "Worker has been assigned to this ticket.",
+    });
+  };
+
+  const getUnassignedTickets = () => mockTickets.filter(t => t.status === 'Open' && t.claimedBy === 'Not claimed');
+  const getMyTickets = () => mockTickets.filter(t => t.claimedBy !== 'Not claimed');
+  const getAllTickets = () => mockTickets;
+
+  const renderTicketTable = (tickets: any[]) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Issue Category</TableHead>
+          <TableHead>Issue Description</TableHead>
+          <TableHead>Property Address</TableHead>
+          <TableHead>Tenant Name</TableHead>
+          <TableHead>Phone Number</TableHead>
+          <TableHead>Priority</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Assigned Worker</TableHead>
+          <TableHead>Claimed Date/Time</TableHead>
+          <TableHead>Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {tickets.map((ticket) => (
+          <TableRow key={ticket.id}>
+            <TableCell>
+              <Badge className={ticket.categoryColor}>
+                {ticket.category}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <div>
+                <div className="font-medium">{ticket.title}</div>
+                <div className="text-sm text-muted-foreground">{ticket.description}</div>
+              </div>
+            </TableCell>
+            <TableCell>{ticket.propertyAddress}</TableCell>
+            <TableCell>{ticket.tenantName}</TableCell>
+            <TableCell>{ticket.phoneNumber}</TableCell>
+            <TableCell>
+              <Badge className={ticket.priorityColor}>
+                {ticket.priority}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <Badge className={ticket.statusColor}>
+                {ticket.status}
+              </Badge>
+            </TableCell>
+            <TableCell>{ticket.assignedWorker}</TableCell>
+            <TableCell>{ticket.claimedDate}</TableCell>
+            <TableCell>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" onClick={() => setSelectedTicket(ticket)}>
+                  <Eye className="w-4 h-4 mr-1" />
+                  View Details
+                </Button>
+                {ticket.actions.includes('claim') && (
+                  <Button 
+                    size="sm" 
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => handleClaimTicket(ticket.id)}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Claim
+                  </Button>
+                )}
+                {ticket.actions.includes('quickAssign') && (
+                  <Button 
+                    size="sm" 
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => handleQuickAssign(ticket.id)}
+                  >
+                    <Zap className="w-4 h-4 mr-1" />
+                    Quick Assign
+                  </Button>
+                )}
+                {ticket.actions.includes('assign') && (
+                  <Button 
+                    size="sm" 
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => handleAssignWorker(ticket.id)}
+                  >
+                    <UserPlus className="w-4 h-4 mr-1" />
+                    Assign Worker
+                  </Button>
+                )}
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Welcome back, Murat!</h1>
-          <p className="text-muted-foreground">Manage maintenance tickets and coordinate with workers</p>
+          <h1 className="text-3xl font-bold text-foreground">Maintenance Tickets</h1>
+          <p className="text-muted-foreground">10 total tickets • 5 active • 2 urgent</p>
         </div>
-        <Button className="bg-gradient-agent hover:opacity-90 text-white border-0">
-          <Ticket className="w-4 h-4 mr-2" />
-          View All Tickets
-        </Button>
-      </div>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-l-4 border-agent">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tickets</CardTitle>
-            <Ticket className="h-4 w-4 text-agent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-agent">47</div>
-            <p className="text-xs text-muted-foreground">+12% from last month</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-error">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Urgent Tickets</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-error" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-error">3</div>
-            <p className="text-xs text-muted-foreground">Requires immediate attention</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-info">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">My Tickets</CardTitle>
-            <Wrench className="h-4 w-4 text-info" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-info">8</div>
-            <p className="text-xs text-muted-foreground">Currently assigned to you</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-success">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">94%</div>
-            <p className="text-xs text-muted-foreground">This month</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Unassigned Tickets */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Ticket className="w-5 h-5 text-agent" />
-              Unassigned Tickets
-            </CardTitle>
-            <CardDescription>Tickets waiting to be claimed</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-error/10 rounded-lg flex items-center justify-center">
-                    <AlertTriangle className="w-5 h-5 text-error" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Kitchen faucet leaking - Unit 4B</p>
-                    <p className="text-sm text-muted-foreground">123 Maple Street • Reported 2 hours ago</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive">Urgent</Badge>
-                  <Button size="sm" className="bg-agent hover:bg-agent/90">Claim</Button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-warning/10 rounded-lg flex items-center justify-center">
-                    <Wrench className="w-5 h-5 text-warning" />
-                  </div>
-                  <div>
-                    <p className="font-medium">HVAC not heating properly</p>
-                    <p className="text-sm text-muted-foreground">456 Oak Avenue • Reported 1 day ago</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">High</Badge>
-                  <Button size="sm" variant="outline">Claim</Button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-info/10 rounded-lg flex items-center justify-center">
-                    <Wrench className="w-5 h-5 text-info" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Bathroom light replacement</p>
-                    <p className="text-sm text-muted-foreground">789 Pine Street • Reported 3 days ago</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">Medium</Badge>
-                  <Button size="sm" variant="outline">Claim</Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Performance Stats */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-agent" />
-              Performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span>Tickets Completed</span>
-                <span className="font-medium">24/30</span>
-              </div>
-              <Progress value={80} className="h-2" />
-            </div>
-
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span>Avg Response Time</span>
-                <span className="font-medium">2.4 hours</span>
-              </div>
-              <Progress value={75} className="h-2" />
-            </div>
-
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span>Customer Rating</span>
-                <span className="font-medium">4.8/5.0</span>
-              </div>
-              <Progress value={96} className="h-2" />
-            </div>
-
-            <div className="pt-4 border-t">
-              <p className="text-sm font-medium text-muted-foreground mb-2">This Week</p>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Completed</span>
-                  <span className="text-success font-semibold">12</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>In Progress</span>
-                  <span className="text-warning font-semibold">5</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Pending</span>
-                  <span className="text-error font-semibold">3</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* My Active Tickets */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-agent" />
-            My Active Tickets
-          </CardTitle>
-          <CardDescription>Tickets currently assigned to you</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-warning/10 rounded-lg flex items-center justify-center">
-                  <Wrench className="w-5 h-5 text-warning" />
-                </div>
-                <div>
-                  <p className="font-medium">Electrical outlet repair - Unit 2A</p>
-                  <p className="text-sm text-muted-foreground">Claimed 3 hours ago • Est. completion: Today</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">In Progress</Badge>
-                <Button size="sm" variant="outline">Update</Button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-success/10 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-success" />
-                </div>
-                <div>
-                  <p className="font-medium">Plumbing inspection</p>
-                  <p className="text-sm text-muted-foreground">Completed yesterday • Awaiting landlord approval</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-success text-white">Completed</Badge>
-                <Button size="sm" variant="outline">View</Button>
-              </div>
-            </div>
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search tickets..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-80"
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <Tabs defaultValue="unassigned" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="unassigned">Unassigned Issues</TabsTrigger>
+          <TabsTrigger value="my-issues">My Issues</TabsTrigger>
+          <TabsTrigger value="all-agency">All Agency Issues</TabsTrigger>
+        </TabsList>
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap gap-4 items-center">
+              <span className="text-sm font-medium">Filter by:</span>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Issue Category</span>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Categories">All Categories</SelectItem>
+                    <SelectItem value="Heating & Boiler">Heating & Boiler</SelectItem>
+                    <SelectItem value="Plumbing">Plumbing</SelectItem>
+                    <SelectItem value="Electrical">Electrical</SelectItem>
+                    <SelectItem value="General">General</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Priority</span>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Priorities">All Priorities</SelectItem>
+                    <SelectItem value="Urgent">Urgent</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Status</span>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Statuses">All Statuses</SelectItem>
+                    <SelectItem value="Open">Open</SelectItem>
+                    <SelectItem value="Claimed">Claimed</SelectItem>
+                    <SelectItem value="In progress">In progress</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Property Address</span>
+                <Input
+                  placeholder="Search address..."
+                  value={addressFilter}
+                  onChange={(e) => setAddressFilter(e.target.value)}
+                  className="w-60"
+                />
+              </div>
+
+              <Button variant="outline" size="sm">
+                Clear Filters
+              </Button>
+
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Filter className="w-4 h-4 mr-1" />
+                Filter
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <TabsContent value="unassigned" className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              {renderTicketTable(getUnassignedTickets())}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="my-issues" className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              {renderTicketTable(getMyTickets())}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="all-agency" className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              {renderTicketTable(getAllTickets())}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Ticket Details Modal */}
+      <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Ticket Details</DialogTitle>
+            <DialogDescription>
+              Complete information about this maintenance ticket
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedTicket && (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-semibold mb-4">Issue Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Category</Label>
+                      <p className="text-sm">{selectedTicket.category}</p>
+                    </div>
+                    <div>
+                      <Label>Title</Label>
+                      <p className="text-sm">{selectedTicket.title}</p>
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <p className="text-sm">{selectedTicket.description}</p>
+                    </div>
+                    <div>
+                      <Label>Priority</Label>
+                      <Badge className={selectedTicket.priorityColor}>
+                        {selectedTicket.priority}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="font-semibold mb-4">Contact Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Property Address</Label>
+                      <p className="text-sm">{selectedTicket.propertyAddress}</p>
+                    </div>
+                    <div>
+                      <Label>Tenant Name</Label>
+                      <p className="text-sm">{selectedTicket.tenantName}</p>
+                    </div>
+                    <div>
+                      <Label>Phone Number</Label>
+                      <p className="text-sm">{selectedTicket.phoneNumber}</p>
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Badge className={selectedTicket.statusColor}>
+                        {selectedTicket.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photos/Videos Section */}
+              <div>
+                <h3 className="font-semibold mb-4">Photos & Videos</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <p className="text-sm text-muted-foreground">No photos uploaded yet</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Milestones */}
+              <div>
+                <h3 className="font-semibold mb-4">Milestones</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 border rounded-lg">
+                    <Clock className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Ticket Reported</p>
+                      <p className="text-xs text-muted-foreground">{selectedTicket.claimedDate}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes Section */}
+              <div>
+                <h3 className="font-semibold mb-4">Notes</h3>
+                <Textarea
+                  placeholder="Add notes about this ticket..."
+                  className="min-h-24"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t">
+                <Button variant="outline" onClick={() => setSelectedTicket(null)}>
+                  Close
+                </Button>
+                {selectedTicket.actions.includes('claim') && (
+                  <Button 
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => {
+                      handleClaimTicket(selectedTicket.id);
+                      setSelectedTicket(null);
+                    }}
+                  >
+                    Claim Ticket
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
