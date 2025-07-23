@@ -16,6 +16,7 @@ import { TenantPayments } from "@/components/pages/tenant/TenantPayments";
 import { TenantMessages } from "@/components/pages/tenant/TenantMessages";
 import { AgentTickets } from "@/components/pages/agent/AgentTickets";
 import { AgentWorkers } from "@/components/pages/agent/AgentWorkers";
+import { Properties } from "@/components/pages/Properties";
 
 const queryClient = new QueryClient();
 
@@ -94,10 +95,7 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Layout>
-              <div className="text-center p-8">
-                <h2 className="text-2xl font-bold mb-4">Properties</h2>
-                <p className="text-muted-foreground">Feature coming soon...</p>
-              </div>
+              <Properties />
             </Layout>
           </ProtectedRoute>
         }
