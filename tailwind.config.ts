@@ -26,7 +26,8 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					foreground: 'hsl(var(--primary-foreground))',
+					hover: 'hsl(var(--primary-hover))'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -61,7 +62,42 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				tenant: {
+					DEFAULT: 'hsl(var(--tenant-primary))',
+					secondary: 'hsl(var(--tenant-secondary))',
+					accent: 'hsl(var(--tenant-accent))'
+				},
+				agent: {
+					DEFAULT: 'hsl(var(--agent-primary))',
+					secondary: 'hsl(var(--agent-secondary))',
+					accent: 'hsl(var(--agent-accent))'
+				},
+				landlord: {
+					DEFAULT: 'hsl(var(--landlord-primary))',
+					secondary: 'hsl(var(--landlord-secondary))',
+					accent: 'hsl(var(--landlord-accent))'
+				},
+				success: 'hsl(var(--success))',
+				warning: 'hsl(var(--warning))',
+				error: 'hsl(var(--error))',
+				info: 'hsl(var(--info))'
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-tenant': 'var(--gradient-tenant)',
+				'gradient-agent': 'var(--gradient-agent)',
+				'gradient-landlord': 'var(--gradient-landlord)'
+			},
+			boxShadow: {
+				'custom-sm': 'var(--shadow-sm)',
+				'custom-md': 'var(--shadow-md)',
+				'custom-lg': 'var(--shadow-lg)',
+				'custom-xl': 'var(--shadow-xl)'
+			},
+			transitionProperty: {
+				'smooth': 'var(--transition-smooth)',
+				'fast': 'var(--transition-fast)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
