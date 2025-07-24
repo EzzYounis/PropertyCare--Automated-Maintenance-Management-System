@@ -149,34 +149,127 @@ export const AgentDashboard = () => {
     }
   };
 
-  const handleClaimTicket = (ticketId: string) => {
-    toast({
-      title: "Ticket Claimed",
-      description: "You have successfully claimed this ticket.",
-    });
+  const handleClaimTicket = async (ticketId: string) => {
+    try {
+      // Update the ticket to assign it to current agent
+      const { error } = await supabase
+        .from('maintenance_requests')
+        .update({ 
+          assigned_worker_id: 'current_agent', // You should replace this with actual agent ID
+          status: 'assigned'
+        })
+        .eq('id', ticketId);
+
+      if (error) {
+        console.error('Error claiming ticket:', error);
+        toast({
+          title: "Error",
+          description: "Failed to claim ticket",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Ticket Claimed",
+        description: "You have successfully claimed this ticket.",
+      });
+      
+      // Refresh the data to show updated status
+      await fetchMaintenanceRequests();
+    } catch (error) {
+      console.error('Error claiming ticket:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleQuickAssign = (ticketId: string) => {
-    toast({
-      title: "Worker Assigned",
-      description: "Your favorite worker has been automatically assigned to this ticket.",
-    });
+  const handleQuickAssign = async (ticketId: string) => {
+    try {
+      // Update the ticket to assign it to a favorite worker
+      const { error } = await supabase
+        .from('maintenance_requests')
+        .update({ 
+          assigned_worker_id: 'favorite_worker', // You should replace this with actual favorite worker ID
+          status: 'assigned'
+        })
+        .eq('id', ticketId);
+
+      if (error) {
+        console.error('Error assigning worker:', error);
+        toast({
+          title: "Error",
+          description: "Failed to assign worker",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Worker Assigned",
+        description: "Your favorite worker has been automatically assigned to this ticket.",
+      });
+      
+      // Refresh the data to show updated status
+      await fetchMaintenanceRequests();
+    } catch (error) {
+      console.error('Error assigning worker:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleAssignWorker = (ticketId: string) => {
-    toast({
-      title: "Worker Assignment",
-      description: "Worker has been assigned to this ticket.",
-    });
+  const handleAssignWorker = async (ticketId: string) => {
+    try {
+      // Update the ticket to assign it to a specific worker
+      const { error } = await supabase
+        .from('maintenance_requests')
+        .update({ 
+          assigned_worker_id: 'selected_worker', // You should replace this with actual selected worker ID
+          status: 'assigned'
+        })
+        .eq('id', ticketId);
+
+      if (error) {
+        console.error('Error assigning worker:', error);
+        toast({
+          title: "Error",
+          description: "Failed to assign worker",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Worker Assignment",
+        description: "Worker has been assigned to this ticket.",
+      });
+      
+      // Refresh the data to show updated status
+      await fetchMaintenanceRequests();
+    } catch (error) {
+      console.error('Error assigning worker:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   // Helper functions to filter tickets
   const getUnassignedTickets = () => tickets.filter(ticket => 
-    ticket.status === 'submitted' || !ticket.assigned_worker_id
+    ticket.status === 'submitted' && (!ticket.assigned_worker_id || ticket.assigned_worker_id === null)
   );
 
   const getMyTickets = () => tickets.filter(ticket => 
-    ticket.assigned_worker_id === 'current_agent' // Update with actual agent ID
+    ticket.assigned_worker_id === 'current_agent' || ticket.status === 'assigned'
   );
 
   const getAllTickets = () => tickets;
@@ -270,12 +363,22 @@ export const AgentDashboard = () => {
                   <Eye className="w-4 h-4 mr-1" />
                   View
                 </Button>
-                {ticket.status === 'submitted' && (
+                {(ticket.status === 'submitted' && (!ticket.assigned_worker_id || ticket.assigned_worker_id === null)) && (
                   <Button 
                     size="sm"
                     onClick={() => handleClaimTicket(ticket.id)}
+                    className="bg-agent hover:bg-agent-secondary text-white"
                   >
                     Claim
+                  </Button>
+                )}
+                {ticket.assigned_worker_id && ticket.status === 'assigned' && (
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleQuickAssign(ticket.id)}
+                  >
+                    Start Work
                   </Button>
                 )}
               </div>
