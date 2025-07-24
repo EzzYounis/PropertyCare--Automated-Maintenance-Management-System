@@ -60,6 +60,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
+import { getAllWorkers, getFavoriteWorkers, getWorkersByCategory, getWorkerById } from '@/data/workers';
 
 // Issue categories mapping to match database
 const issueCategories = {
@@ -102,15 +103,6 @@ export const AgentDashboard = () => {
   const [selectedTicketForAssign, setSelectedTicketForAssign] = useState(null);
   const [workers, setWorkers] = useState([]);
   const { toast } = useToast();
-
-  // Mock workers data - in real app, this would come from database
-  const mockWorkers = [
-    { id: 'worker_1', name: 'John Smith', category: 'plumbing', rating: 4.8, specialties: ['pipes', 'leaks', 'installations'] },
-    { id: 'worker_2', name: 'Mike Johnson', category: 'electrical', rating: 4.9, specialties: ['wiring', 'outlets', 'lighting'] },
-    { id: 'worker_3', name: 'Sarah Brown', category: 'heating', rating: 4.7, specialties: ['boilers', 'radiators', 'thermostats'] },
-    { id: 'worker_4', name: 'Tom Wilson', category: 'general', rating: 4.6, specialties: ['repairs', 'maintenance', 'installations'] },
-    { id: 'worker_5', name: 'Lisa Davis', category: 'kitchen', rating: 4.8, specialties: ['appliances', 'cabinets', 'plumbing'] },
-  ];
 
   useEffect(() => {
     fetchMaintenanceRequests();
@@ -210,11 +202,25 @@ export const AgentDashboard = () => {
 
   const handleQuickAssign = async (ticketId: string) => {
     try {
-      // Update the ticket to assign it to a favorite worker
+      // Get favorite workers and assign first one
+      const favoriteWorkers = getFavoriteWorkers();
+      
+      if (favoriteWorkers.length === 0) {
+        toast({
+          title: "No Favorite Workers",
+          description: "Please mark a worker as favorite first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const favoriteWorker = favoriteWorkers[0]; // Use first favorite worker
+      
+      // Update the ticket to assign it to the favorite worker
       const { error } = await supabase
         .from('maintenance_requests')
         .update({ 
-          assigned_worker_id: 'favorite_worker', // You should replace this with actual favorite worker ID
+          assigned_worker_id: favoriteWorker.id,
           status: 'assigned'
         })
         .eq('id', ticketId);
@@ -231,7 +237,7 @@ export const AgentDashboard = () => {
 
       toast({
         title: "Worker Assigned",
-        description: "Your favorite worker has been automatically assigned to this ticket.",
+        description: `${favoriteWorker.name} has been automatically assigned to this ticket.`,
       });
       
       // Refresh the data to show updated status
@@ -267,7 +273,7 @@ export const AgentDashboard = () => {
         return;
       }
 
-      const worker = mockWorkers.find(w => w.id === workerId);
+      const worker = getAllWorkers().find(w => w.id === workerId);
       toast({
         title: "Worker Assigned",
         description: `${worker?.name || 'Worker'} has been assigned to this ticket.`,
@@ -289,11 +295,11 @@ export const AgentDashboard = () => {
 
   const openAssignModal = (ticket: any) => {
     setSelectedTicketForAssign(ticket);
-    // Filter workers by ticket category
-    const categoryWorkers = mockWorkers.filter(worker => 
-      worker.category === ticket.category || worker.category === 'general'
-    );
-    setWorkers(categoryWorkers);
+    // Filter workers by ticket category - use workers from the matching category or general
+    const categoryWorkers = getWorkersByCategory(ticket.category);
+    const generalWorkers = getWorkersByCategory('general');
+    const allAvailableWorkers = [...categoryWorkers, ...generalWorkers];
+    setWorkers(allAvailableWorkers);
     setAssignModalOpen(true);
   };
 
@@ -647,16 +653,10 @@ export const AgentDashboard = () => {
                           </div>
                           <div>
                             <h3 className="font-medium">{worker.name}</h3>
-                            <p className="text-sm text-muted-foreground capitalize">
-                              {worker.category} Specialist • Rating: {worker.rating}/5
+                            <p className="text-sm text-muted-foreground">
+                              {worker.specialty} • Rating: {worker.rating}/5
                             </p>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {worker.specialties.map((specialty, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs">
-                                  {specialty}
-                                </Badge>
-                              ))}
-                            </div>
+                            <p className="text-xs text-muted-foreground">{worker.phone}</p>
                           </div>
                         </div>
                         <Button 

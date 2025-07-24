@@ -28,82 +28,30 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AgentWorkerDetail } from './AgentWorkerDetail';
+import { workerCategories } from '@/data/workers';
 
-// Category data with icons
-const categories = [
-  {
-    id: 'heating',
-    name: 'Heating & Boiler',
-    icon: Thermometer,
-    color: 'text-orange-500',
-    bg: 'bg-orange-100',
-    workers: [
-      {
-        id: 'mj',
-        initials: 'MJ',
-        name: 'Mike Johnson',
-        specialty: 'Boiler Specialist',
-        rating: 4.2,
-        phone: '+44 7700 654321',
-        description: 'Expert Boiler Repairs',
-        favorite: false,
-        category: 'heating'
-      }
-    ]
-  },
-  {
-    id: 'plumbing',
-    name: 'Plumbing',
-    icon: Droplets,
-    color: 'text-blue-500',
-    bg: 'bg-blue-100',
-    workers: [
-      {
-        id: 'sd',
-        initials: 'SD',
-        name: 'Sarah Davis',
-        specialty: 'Senior Plumber',
-        rating: 4.8,
-        phone: '+44 7700 123456',
-        description: 'Professional Plumbing Services',
-        favorite: true,
-        category: 'plumbing'
-      }
-    ]
-  },
-  {
-    id: 'electrical',
-    name: 'Electrical',
-    icon: Zap,
-    color: 'text-yellow-500',
-    bg: 'bg-yellow-100',
-    workers: []
-  },
-  {
-    id: 'kitchen',
-    name: 'Kitchen',
-    icon: Home,
-    color: 'text-purple-500',
-    bg: 'bg-purple-100',
-    workers: []
-  },
-  {
-    id: 'damp',
-    name: 'Damp & Mould',
-    icon: Droplets,
-    color: 'text-teal-500',
-    bg: 'bg-teal-100',
-    workers: []
-  },
-  {
-    id: 'general',
-    name: 'General',
-    icon: Wrench,
-    color: 'text-gray-500',
-    bg: 'bg-gray-100',
-    workers: []
-  }
-];
+// Add icons to categories
+const categories = workerCategories.map(category => ({
+  ...category,
+  icon: category.id === 'heating' ? Thermometer :
+        category.id === 'plumbing' ? Droplets :
+        category.id === 'electrical' ? Zap :
+        category.id === 'kitchen' ? Home :
+        category.id === 'damp' ? Droplets :
+        Wrench,
+  color: category.id === 'heating' ? 'text-orange-500' :
+         category.id === 'plumbing' ? 'text-blue-500' :
+         category.id === 'electrical' ? 'text-yellow-500' :
+         category.id === 'kitchen' ? 'text-purple-500' :
+         category.id === 'damp' ? 'text-teal-500' :
+         'text-gray-500',
+  bg: category.id === 'heating' ? 'bg-orange-100' :
+      category.id === 'plumbing' ? 'bg-blue-100' :
+      category.id === 'electrical' ? 'bg-yellow-100' :
+      category.id === 'kitchen' ? 'bg-purple-100' :
+      category.id === 'damp' ? 'bg-teal-100' :
+      'bg-gray-100'
+}));
 
 export const AgentWorkers = () => {
   const [searchTerm, setSearchTerm] = useState('');
