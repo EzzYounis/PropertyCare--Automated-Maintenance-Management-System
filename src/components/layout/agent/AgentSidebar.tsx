@@ -26,7 +26,6 @@ import {
 const menuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
   { title: 'Workers', url: '/workers', icon: Users },
-  { title: 'Estimates', url: '/estimates', icon: Calculator },
   { title: 'Messages', url: '/messages', icon: MessageSquare },
   { title: 'Invoices', url: '/invoices', icon: FileText },
 ];
