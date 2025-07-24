@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,8 +15,11 @@ import {
   Clock
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { EnhancedReportIssueDialog } from '@/components/tenant/EnhancedReportIssueDialog';
 
 export const TenantDashboard = () => {
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
@@ -25,7 +28,10 @@ export const TenantDashboard = () => {
           <h1 className="text-3xl font-bold text-foreground">Welcome back, Furkan!</h1>
           <p className="text-muted-foreground">Here's what's happening with your property</p>
         </div>
-        <Button className="bg-gradient-tenant hover:opacity-90 text-white border-0">
+        <Button 
+          className="bg-gradient-tenant hover:opacity-90 text-white border-0"
+          onClick={() => setIsReportDialogOpen(true)}
+        >
           <Wrench className="w-4 h-4 mr-2" />
           Report Issue
         </Button>
@@ -209,6 +215,12 @@ export const TenantDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Enhanced Report Issue Dialog */}
+      <EnhancedReportIssueDialog 
+        open={isReportDialogOpen}
+        onOpenChange={setIsReportDialogOpen}
+      />
     </div>
   );
 };

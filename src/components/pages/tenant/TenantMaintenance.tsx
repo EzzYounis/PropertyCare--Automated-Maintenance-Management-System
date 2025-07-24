@@ -3,8 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Wrench, 
@@ -17,7 +15,7 @@ import {
   Search
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { EnhancedReportIssueDialog } from '@/components/tenant/EnhancedReportIssueDialog';
 
 const priorities = [
   { value: 'urgent', label: 'Urgent', color: 'destructive' },
@@ -69,45 +67,8 @@ const mockIssues = [
 export const TenantMaintenance = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const { toast } = useToast();
-
-  const [newIssue, setNewIssue] = useState({
-    title: '',
-    category: '',
-    priority: 'medium',
-    description: '',
-    location: '',
-    availableTime: ''
-  });
-
-  const handleSubmitIssue = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newIssue.title || !newIssue.category || !newIssue.description) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Issue Reported",
-      description: "Your maintenance request has been submitted successfully.",
-    });
-
-    setNewIssue({
-      title: '',
-      category: '',
-      priority: 'medium',
-      description: '',
-      location: '',
-      availableTime: ''
-    });
-    setIsDialogOpen(false);
-  };
 
   const getPriorityBadge = (priority: string) => {
     const config = priorities.find(p => p.value === priority);
@@ -143,118 +104,14 @@ export const TenantMaintenance = () => {
           <p className="text-muted-foreground">Report issues and track repair progress</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="tenant" size="lg">
-              <Plus className="w-4 h-4 mr-2" />
-              Report New Issue
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Report Maintenance Issue</DialogTitle>
-              <DialogDescription>
-                Provide details about the maintenance issue you're experiencing
-              </DialogDescription>
-            </DialogHeader>
-            
-            <form onSubmit={handleSubmitIssue} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Issue Title *</Label>
-                  <Input
-                    id="title"
-                    placeholder="Brief description of the issue"
-                    value={newIssue.title}
-                    onChange={(e) => setNewIssue({...newIssue, title: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select value={newIssue.category} onValueChange={(value) => setNewIssue({...newIssue, category: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>{category}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="priority">Priority</Label>
-                  <Select value={newIssue.priority} onValueChange={(value) => setNewIssue({...newIssue, priority: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {priorities.map((priority) => (
-                        <SelectItem key={priority.value} value={priority.value}>{priority.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location/Room</Label>
-                  <Input
-                    id="location"
-                    placeholder="e.g., Kitchen, Bathroom, Living Room"
-                    value={newIssue.location}
-                    onChange={(e) => setNewIssue({...newIssue, location: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Detailed description of the issue"
-                  value={newIssue.description}
-                  onChange={(e) => setNewIssue({...newIssue, description: e.target.value})}
-                  required
-                  rows={4}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="availableTime">Preferred Time for Repair</Label>
-                <Input
-                  id="availableTime"
-                  placeholder="e.g., Weekdays 9AM-5PM, Weekends anytime"
-                  value={newIssue.availableTime}
-                  onChange={(e) => setNewIssue({...newIssue, availableTime: e.target.value})}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Upload Photos (Optional)</Label>
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                  <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    Drag photos here or click to browse
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="tenant">
-                  Submit Request
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button 
+          variant="tenant" 
+          size="lg"
+          onClick={() => setIsReportDialogOpen(true)}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Report New Issue
+        </Button>
       </div>
 
       {/* Filters */}
@@ -346,7 +203,7 @@ export const TenantMaintenance = () => {
                 : 'You haven\'t submitted any maintenance requests yet'}
             </p>
             {!searchTerm && filterStatus === 'all' && (
-              <Button variant="tenant" onClick={() => setIsDialogOpen(true)}>
+              <Button variant="tenant" onClick={() => setIsReportDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Report Your First Issue
               </Button>
@@ -354,6 +211,12 @@ export const TenantMaintenance = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Enhanced Report Issue Dialog */}
+      <EnhancedReportIssueDialog 
+        open={isReportDialogOpen}
+        onOpenChange={setIsReportDialogOpen}
+      />
     </div>
   );
 };
