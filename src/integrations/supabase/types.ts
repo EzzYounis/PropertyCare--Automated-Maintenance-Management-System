@@ -14,7 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      maintenance_requests: {
+        Row: {
+          actual_cost: number | null
+          agent_notes: string | null
+          assigned_worker_id: string | null
+          category: string
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          estimated_cost: number | null
+          id: string
+          landlord_notes: string | null
+          photos: string[] | null
+          preferred_date: string | null
+          preferred_time_slots: string[] | null
+          priority: string
+          quick_fixes: string[] | null
+          room: string | null
+          status: string
+          subcategory: string | null
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actual_cost?: number | null
+          agent_notes?: string | null
+          assigned_worker_id?: string | null
+          category: string
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          estimated_cost?: number | null
+          id?: string
+          landlord_notes?: string | null
+          photos?: string[] | null
+          preferred_date?: string | null
+          preferred_time_slots?: string[] | null
+          priority?: string
+          quick_fixes?: string[] | null
+          room?: string | null
+          status?: string
+          subcategory?: string | null
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actual_cost?: number | null
+          agent_notes?: string | null
+          assigned_worker_id?: string | null
+          category?: string
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          estimated_cost?: number | null
+          id?: string
+          landlord_notes?: string | null
+          photos?: string[] | null
+          preferred_date?: string | null
+          preferred_time_slots?: string[] | null
+          priority?: string
+          quick_fixes?: string[] | null
+          room?: string | null
+          status?: string
+          subcategory?: string | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

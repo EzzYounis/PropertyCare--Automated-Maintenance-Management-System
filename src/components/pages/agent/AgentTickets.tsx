@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,71 +21,12 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-
-const mockTickets = [
-  {
-    id: 1,
-    title: 'Kitchen faucet leaking',
-    property: '123 Maple Street, Unit 4B',
-    tenant: 'Furkan',
-    category: 'Plumbing',
-    priority: 'urgent',
-    status: 'unassigned',
-    reportedDate: '2024-01-16',
-    description: 'Water is constantly dripping from the kitchen faucet, causing water waste.',
-    estimatedCost: 150,
-    estimatedTime: '2 hours'
-  },
-  {
-    id: 2,
-    title: 'HVAC not heating properly',
-    property: '456 Oak Avenue, Unit 2A',
-    tenant: 'Sarah Wilson',
-    category: 'HVAC',
-    priority: 'high',
-    status: 'claimed',
-    reportedDate: '2024-01-15',
-    assignedTo: 'Murat',
-    description: 'Heating system not maintaining consistent temperature.',
-    estimatedCost: 300,
-    estimatedTime: '4 hours'
-  },
-  {
-    id: 3,
-    title: 'Bathroom light flickering',
-    property: '789 Pine Street, Unit 1C',
-    tenant: 'Mike Johnson',
-    category: 'Electrical',
-    priority: 'medium',
-    status: 'in_progress',
-    reportedDate: '2024-01-14',
-    assignedTo: 'Murat',
-    description: 'The main bathroom light keeps flickering intermittently.',
-    estimatedCost: 80,
-    estimatedTime: '1 hour'
-  },
-  {
-    id: 4,
-    title: 'Kitchen cabinet door broken',
-    property: '321 Elm Street',
-    tenant: 'Lisa Brown',
-    category: 'General',
-    priority: 'low',
-    status: 'completed',
-    reportedDate: '2024-01-10',
-    completedDate: '2024-01-12',
-    assignedTo: 'John Smith',
-    description: 'Kitchen cabinet door hinge is broken and door won\'t close properly.',
-    estimatedCost: 45,
-    actualCost: 50,
-    timeSpent: '45 minutes'
-  }
-];
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statusOptions = [
   { value: 'all', label: 'All Tickets' },
-  { value: 'unassigned', label: 'Unassigned' },
-  { value: 'claimed', label: 'Claimed' },
+  { value: 'submitted', label: 'Submitted' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'completed', label: 'Completed' }
 ];
@@ -102,14 +43,45 @@ export const AgentTickets = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
-  const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [updateForm, setUpdateForm] = useState({
     status: '',
     notes: '',
     timeSpent: '',
     actualCost: ''
   });
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  const fetchMaintenanceRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setTickets(data || []);
+    } catch (error) {
+      console.error('Error fetching maintenance requests:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch maintenance requests.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMaintenanceRequests();
+  }, []);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -123,8 +95,7 @@ export const AgentTickets = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'unassigned': return 'text-warning';
-      case 'claimed': return 'text-info';
+      case 'submitted': return 'text-warning';
       case 'in_progress': return 'text-agent';
       case 'completed': return 'text-success';
       default: return 'text-muted-foreground';
@@ -133,8 +104,7 @@ export const AgentTickets = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'unassigned': return <Clock className="w-4 h-4" />;
-      case 'claimed': return <User className="w-4 h-4" />;
+      case 'submitted': return <Clock className="w-4 h-4" />;
       case 'in_progress': return <Wrench className="w-4 h-4" />;
       case 'completed': return <CheckCircle className="w-4 h-4" />;
       default: return <Ticket className="w-4 h-4" />;
@@ -156,19 +126,18 @@ export const AgentTickets = () => {
     setSelectedTicket(null);
   };
 
-  const filteredTickets = mockTickets.filter(ticket => {
+  const filteredTickets = tickets.filter(ticket => {
     const matchesSearch = ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.property.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.tenant.toLowerCase().includes(searchTerm.toLowerCase());
+                         ticket.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter;
     
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
-  const myTickets = mockTickets.filter(ticket => ticket.assignedTo === 'Murat').length;
-  const unassignedTickets = mockTickets.filter(ticket => ticket.status === 'unassigned').length;
-  const urgentTickets = mockTickets.filter(ticket => ticket.priority === 'urgent').length;
+  const myTickets = tickets.filter(ticket => ticket.assigned_worker_id === user?.id).length;
+  const unassignedTickets = tickets.filter(ticket => ticket.status === 'submitted').length;
+  const urgentTickets = tickets.filter(ticket => ticket.priority === 'urgent').length;
 
   return (
     <div className="space-y-6">
@@ -197,7 +166,7 @@ export const AgentTickets = () => {
             <div className="flex items-center gap-3">
               <Ticket className="w-8 h-8 text-agent" />
               <div>
-                <p className="text-2xl font-bold">{mockTickets.length}</p>
+                <p className="text-2xl font-bold">{tickets.length}</p>
                 <p className="text-sm text-muted-foreground">Total Tickets</p>
               </div>
             </div>
@@ -290,155 +259,88 @@ export const AgentTickets = () => {
 
       {/* Tickets List */}
       <div className="space-y-4">
-        {filteredTickets.map((ticket) => (
-          <Card key={ticket.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${getStatusColor(ticket.status)}`}>
-                      {getStatusIcon(ticket.status)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-lg">{ticket.title}</h3>
-                        <Badge variant={getPriorityColor(ticket.priority)}>
-                          {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
-                        </Badge>
-                        <Badge variant="outline">{ticket.category}</Badge>
-                      </div>
-                      
-                      <div className="space-y-1 text-sm text-muted-foreground mb-3">
-                        <p><strong>Property:</strong> {ticket.property}</p>
-                        <p><strong>Tenant:</strong> {ticket.tenant}</p>
-                        <p><strong>Reported:</strong> {new Date(ticket.reportedDate).toLocaleDateString()}</p>
-                        {ticket.assignedTo && <p><strong>Assigned to:</strong> {ticket.assignedTo}</p>}
-                      </div>
-                      
-                      <p className="text-muted-foreground mb-3">{ticket.description}</p>
-                      
-                      <div className="flex flex-wrap gap-4 text-sm">
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="w-4 h-4" />
-                          <span>Est. ${ticket.estimatedCost}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          <span>Est. {ticket.estimatedTime}</span>
-                        </div>
-                        {ticket.actualCost && (
-                          <div className="flex items-center gap-1 text-success">
-                            <DollarSign className="w-4 h-4" />
-                            <span>Actual: ${ticket.actualCost}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Badge 
-                    variant={ticket.status === 'completed' ? 'default' : 'secondary'}
-                    className="w-fit"
-                  >
-                    {ticket.status.replace('_', ' ').charAt(0).toUpperCase() + ticket.status.replace('_', ' ').slice(1)}
-                  </Badge>
-                  
-                  <div className="flex gap-2">
-                    {ticket.status === 'unassigned' && (
-                      <Button 
-                        variant="agent" 
-                        size="sm"
-                        onClick={() => handleClaimTicket(ticket.id)}
-                      >
-                        Claim Ticket
-                      </Button>
-                    )}
-                    
-                    {(ticket.status === 'claimed' || ticket.status === 'in_progress') && ticket.assignedTo === 'Murat' && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            Update Status
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Update Ticket</DialogTitle>
-                            <DialogDescription>
-                              Update the status and details of this maintenance ticket
-                            </DialogDescription>
-                          </DialogHeader>
-                          
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="status">Status</Label>
-                              <Select value={updateForm.status} onValueChange={(value) => setUpdateForm({...updateForm, status: value})}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="in_progress">In Progress</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                  <SelectItem value="on_hold">On Hold</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div>
-                              <Label htmlFor="notes">Work Notes</Label>
-                              <Textarea
-                                id="notes"
-                                placeholder="Describe the work performed..."
-                                value={updateForm.notes}
-                                onChange={(e) => setUpdateForm({...updateForm, notes: e.target.value})}
-                                rows={3}
-                              />
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <Label htmlFor="timeSpent">Time Spent</Label>
-                                <Input
-                                  id="timeSpent"
-                                  placeholder="e.g., 2 hours"
-                                  value={updateForm.timeSpent}
-                                  onChange={(e) => setUpdateForm({...updateForm, timeSpent: e.target.value})}
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor="actualCost">Actual Cost ($)</Label>
-                                <Input
-                                  id="actualCost"
-                                  type="number"
-                                  placeholder="0"
-                                  value={updateForm.actualCost}
-                                  onChange={(e) => setUpdateForm({...updateForm, actualCost: e.target.value})}
-                                />
-                              </div>
-                            </div>
-                            
-                            <div className="flex gap-3 pt-4">
-                              <Button variant="outline">Cancel</Button>
-                              <Button variant="agent" onClick={handleUpdateTicket}>
-                                Update Ticket
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                    
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
-                  </div>
-                </div>
-              </div>
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-agent mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading maintenance requests...</p>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          filteredTickets.map((ticket) => (
+            <Card key={ticket.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${getStatusColor(ticket.status)}`}>
+                        {getStatusIcon(ticket.status)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-lg">{ticket.title}</h3>
+                          <Badge variant={getPriorityColor(ticket.priority)}>
+                            {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
+                          </Badge>
+                          <Badge variant="outline">{ticket.category}</Badge>
+                        </div>
+                        
+                        <div className="space-y-1 text-sm text-muted-foreground mb-3">
+                          <p><strong>Reported:</strong> {new Date(ticket.created_at).toLocaleDateString()}</p>
+                          {ticket.room && <p><strong>Room:</strong> {ticket.room}</p>}
+                          {ticket.subcategory && <p><strong>Type:</strong> {ticket.subcategory}</p>}
+                          {ticket.assigned_worker_id && <p><strong>Assigned to:</strong> Agent</p>}
+                        </div>
+                        
+                        <p className="text-muted-foreground mb-3">{ticket.description}</p>
+                        
+                        <div className="flex flex-wrap gap-4 text-sm">
+                          {ticket.estimated_cost && (
+                            <div className="flex items-center gap-1">
+                              <DollarSign className="w-4 h-4" />
+                              <span>Est. ${ticket.estimated_cost}</span>
+                            </div>
+                          )}
+                          {ticket.actual_cost && (
+                            <div className="flex items-center gap-1 text-success">
+                              <DollarSign className="w-4 h-4" />
+                              <span>Actual: ${ticket.actual_cost}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Badge 
+                      variant={ticket.status === 'completed' ? 'default' : 'secondary'}
+                      className="w-fit"
+                    >
+                      {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                    </Badge>
+                    
+                    <div className="flex gap-2">
+                      {ticket.status === 'submitted' && (
+                        <Button 
+                          variant="agent" 
+                          size="sm"
+                          onClick={() => handleClaimTicket(ticket.id)}
+                        >
+                          Claim Ticket
+                        </Button>
+                      )}
+                      
+                      <Button variant="outline" size="sm">
+                        View Details
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {filteredTickets.length === 0 && (

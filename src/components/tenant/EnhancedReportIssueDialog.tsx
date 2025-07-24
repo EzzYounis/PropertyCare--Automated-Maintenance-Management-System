@@ -11,6 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Droplets,
   Zap,
@@ -259,8 +261,10 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
     title: '',
     description: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const resetForm = () => {
     setSelectedCategory(null);
@@ -313,8 +317,8 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
     setUploadedPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
-    if (!selectedCategory || !formData.title || !formData.description) {
+  const handleSubmit = async () => {
+    if (!selectedCategory || !formData.title || !formData.description || !user) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -323,34 +327,56 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
       return;
     }
 
-    const issueData = {
-      id: Date.now(),
-      title: formData.title,
-      category: selectedCategory?.name,
-      subcategory: selectedSubcategory,
-      priority: selectedPriority,
-      status: 'Reported',
-      reportedDate: new Date().toISOString().split('T')[0],
-      description: formData.description,
-      room: selectedRoom,
-      preferredDate,
-      timeSlots: selectedTimeSlots,
-      photos: uploadedPhotos,
-      quickFixesAttempted: quickFixesCompleted
-    };
+    setIsSubmitting(true);
 
-    // Call the callback to add the issue to the list
-    if (onIssueSubmitted) {
-      onIssueSubmitted(issueData);
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .insert([
+          {
+            tenant_id: user.id,
+            title: formData.title,
+            description: formData.description,
+            category: selectedCategory.name,
+            subcategory: selectedSubcategory || null,
+            priority: selectedPriority,
+            status: 'submitted',
+            room: selectedRoom || null,
+            quick_fixes: quickFixesCompleted,
+            preferred_time_slots: selectedTimeSlots,
+            preferred_date: preferredDate ? format(preferredDate, 'yyyy-MM-dd') : null,
+            photos: [], // For now, just empty array - can implement file upload later
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Call the callback to refresh the list
+      if (onIssueSubmitted) {
+        onIssueSubmitted(data);
+      }
+
+      toast({
+        title: "Issue Reported Successfully!",
+        description: "Your maintenance request has been submitted and will be reviewed shortly.",
+      });
+
+      resetForm();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error submitting maintenance request:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit maintenance request. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    toast({
-      title: "Issue Reported Successfully!",
-      description: "Your maintenance request has been submitted and will be reviewed shortly.",
-    });
-
-    resetForm();
-    onOpenChange(false);
   };
 
   return (
@@ -658,10 +684,10 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
           </Button>
           <Button 
             onClick={handleSubmit}
-            disabled={!selectedCategory || !formData.title || !formData.description}
+            disabled={!selectedCategory || !formData.title || !formData.description || isSubmitting}
             variant="tenant"
           >
-            Submit Request
+            {isSubmitting ? 'Submitting...' : 'Submit Request'}
           </Button>
         </div>
       </DialogContent>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EnhancedReportIssueDialog } from '@/components/tenant/EnhancedReportIssueDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const priorities = [
   { value: 'urgent', label: 'Urgent', color: 'destructive' },
@@ -28,48 +30,42 @@ const categories = [
   'Plumbing', 'Electrical', 'HVAC', 'Kitchen', 'Bathroom', 'Flooring', 'Windows/Doors', 'General'
 ];
 
-const initialIssues = [
-  {
-    id: 1,
-    title: 'Kitchen faucet leaking',
-    category: 'Plumbing',
-    priority: 'urgent',
-    status: 'In Progress',
-    reportedDate: '2024-01-15',
-    description: 'Water is constantly dripping from the kitchen faucet, causing water waste.',
-    assignedTo: 'John Smith',
-    estimatedCompletion: '2024-01-16'
-  },
-  {
-    id: 2,
-    title: 'Bathroom light flickering',
-    category: 'Electrical',
-    priority: 'medium',
-    status: 'Scheduled',
-    reportedDate: '2024-01-10',
-    description: 'The main bathroom light keeps flickering intermittently.',
-    assignedTo: 'Mike Johnson',
-    estimatedCompletion: '2024-01-18'
-  },
-  {
-    id: 3,
-    title: 'HVAC not heating properly',
-    category: 'HVAC',
-    priority: 'high',
-    status: 'Completed',
-    reportedDate: '2024-01-08',
-    description: 'Heating system not maintaining consistent temperature.',
-    assignedTo: 'Sarah Wilson',
-    completedDate: '2024-01-12'
-  }
-];
-
 export const TenantMaintenance = () => {
-  const [issues, setIssues] = useState(initialIssues);
+  const [issues, setIssues] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  const fetchMaintenanceRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setIssues(data || []);
+    } catch (error) {
+      console.error('Error fetching maintenance requests:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch maintenance requests.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMaintenanceRequests();
+  }, []);
 
   const getPriorityBadge = (priority: string) => {
     const config = priorities.find(p => p.value === priority);
@@ -90,7 +86,7 @@ export const TenantMaintenance = () => {
   };
 
   const handleIssueSubmitted = (newIssue: any) => {
-    setIssues(prevIssues => [newIssue, ...prevIssues]);
+    fetchMaintenanceRequests(); // Refresh the list
   };
 
   const filteredIssues = issues.filter(issue => {
@@ -154,47 +150,54 @@ export const TenantMaintenance = () => {
 
       {/* Issues List */}
       <div className="space-y-4">
-        {filteredIssues.map((issue) => (
-          <Card key={issue.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-tenant/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                      {getStatusIcon(issue.status)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-lg">{issue.title}</h3>
-                        <Badge variant="outline">{issue.category}</Badge>
-                        {getPriorityBadge(issue.priority)}
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-tenant mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading maintenance requests...</p>
+            </CardContent>
+          </Card>
+        ) : (
+          filteredIssues.map((issue) => (
+            <Card key={issue.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-tenant/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        {getStatusIcon(issue.status)}
                       </div>
-                      <p className="text-muted-foreground mb-3">{issue.description}</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span>Reported: {new Date(issue.reportedDate).toLocaleDateString()}</span>
-                        {issue.assignedTo && <span>Assigned to: {issue.assignedTo}</span>}
-                        {issue.estimatedCompletion && (
-                          <span>Est. completion: {new Date(issue.estimatedCompletion).toLocaleDateString()}</span>
-                        )}
-                        {issue.completedDate && (
-                          <span className="text-success">Completed: {new Date(issue.completedDate).toLocaleDateString()}</span>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-lg">{issue.title}</h3>
+                          <Badge variant="outline">{issue.category}</Badge>
+                          {getPriorityBadge(issue.priority)}
+                        </div>
+                        <p className="text-muted-foreground mb-3">{issue.description}</p>
+                        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                          <span>Reported: {new Date(issue.created_at).toLocaleDateString()}</span>
+                          {issue.room && <span>Room: {issue.room}</span>}
+                          {issue.subcategory && <span>Type: {issue.subcategory}</span>}
+                          {issue.completed_at && (
+                            <span className="text-success">Completed: {new Date(issue.completed_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Badge variant={issue.status === 'completed' ? 'default' : 'secondary'} className="w-fit">
+                      {issue.status.charAt(0).toUpperCase() + issue.status.slice(1)}
+                    </Badge>
+                    <Button variant="outline" size="sm">
+                      View Details
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Badge variant={issue.status === 'Completed' ? 'default' : 'secondary'} className="w-fit">
-                    {issue.status}
-                  </Badge>
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {filteredIssues.length === 0 && (
