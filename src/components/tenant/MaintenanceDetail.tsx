@@ -189,6 +189,33 @@ export const MaintenanceDetail: React.FC<MaintenanceDetailProps> = ({
               </div>
             </div>
 
+            {/* Available Date Information */}
+            {(issue.preferred_date || issue.preferred_time_slots?.length > 0) && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Available Date Information</h3>
+                
+                <div className="space-y-3">
+                  {issue.preferred_date && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Preferred Date:</label>
+                      <p className="font-medium">{new Date(issue.preferred_date).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                  
+                  {issue.preferred_time_slots?.length > 0 && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Preferred Time Slots:</label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {issue.preferred_time_slots.map((slot: string, index: number) => (
+                          <Badge key={index} variant="outline">{slot}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Contact Information */}
             <div>
               <h3 className="text-lg font-semibold mb-4">Contact Information</h3>
@@ -375,6 +402,126 @@ export const MaintenanceDetail: React.FC<MaintenanceDetailProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Milestone Section - Full Width */}
+        <div className="mt-8 pt-6 border-t">
+          <h3 className="text-lg font-semibold mb-6">Milestone Progress</h3>
+          
+          <div className="relative">
+            {/* Progress Line */}
+            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+            
+            <div className="space-y-6">
+              {/* Reported */}
+              <div className="flex items-center gap-4">
+                <div className="relative z-10 w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-4 h-4 text-primary-foreground" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Reported</h4>
+                      <p className="text-sm text-muted-foreground">Issue has been reported by tenant</p>
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {new Date(issue.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Acknowledged */}
+              <div className="flex items-center gap-4">
+                <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center ${
+                  issue.status !== 'submitted' ? 'bg-primary' : 'bg-gray-200'
+                }`}>
+                  <CheckCircle className={`w-4 h-4 ${
+                    issue.status !== 'submitted' ? 'text-primary-foreground' : 'text-gray-400'
+                  }`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Acknowledged</h4>
+                      <p className="text-sm text-muted-foreground">Issue has been reviewed and acknowledged</p>
+                    </div>
+                    {issue.status !== 'submitted' && (
+                      <span className="text-sm text-muted-foreground">
+                        {new Date(issue.updated_at).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Worker Assigned */}
+              <div className="flex items-center gap-4">
+                <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center ${
+                  issue.assigned_worker_id ? 'bg-primary' : 'bg-gray-200'
+                }`}>
+                  <User className={`w-4 h-4 ${
+                    issue.assigned_worker_id ? 'text-primary-foreground' : 'text-gray-400'
+                  }`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Worker Assigned</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {issue.assigned_worker_id ? 'Worker has been assigned to this issue' : 'Waiting for worker assignment'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* In Progress */}
+              <div className="flex items-center gap-4">
+                <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center ${
+                  issue.status === 'in_progress' || issue.status === 'completed' ? 'bg-primary' : 'bg-gray-200'
+                }`}>
+                  <Clock className={`w-4 h-4 ${
+                    issue.status === 'in_progress' || issue.status === 'completed' ? 'text-primary-foreground' : 'text-gray-400'
+                  }`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">In Progress</h4>
+                      <p className="text-sm text-muted-foreground">Work is currently in progress</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Completed */}
+              <div className="flex items-center gap-4">
+                <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center ${
+                  issue.status === 'completed' ? 'bg-success' : 'bg-gray-200'
+                }`}>
+                  <CheckCircle className={`w-4 h-4 ${
+                    issue.status === 'completed' ? 'text-white' : 'text-gray-400'
+                  }`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Completed</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {issue.status === 'completed' ? 'Issue has been resolved' : 'Waiting for completion'}
+                      </p>
+                    </div>
+                    {issue.completed_at && (
+                      <span className="text-sm text-muted-foreground">
+                        {new Date(issue.completed_at).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </DialogContent>
