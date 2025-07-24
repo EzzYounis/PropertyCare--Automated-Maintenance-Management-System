@@ -1,22 +1,5 @@
-// Shared worker data structure
+// Shared worker data structure matching tenant issue categories
 export const workerCategories = [
-  {
-    id: 'heating',
-    name: 'Heating & Boiler',
-    workers: [
-      {
-        id: 'mj',
-        initials: 'MJ',
-        name: 'Mike Johnson',
-        specialty: 'Boiler Specialist',
-        rating: 4.2,
-        phone: '+44 7700 654321',
-        description: 'Expert Boiler Repairs',
-        favorite: false,
-        category: 'heating'
-      }
-    ]
-  },
   {
     id: 'plumbing',
     name: 'Plumbing',
@@ -40,18 +23,60 @@ export const workerCategories = [
     workers: []
   },
   {
-    id: 'kitchen',
-    name: 'Kitchen',
+    id: 'hvac',
+    name: 'HVAC',
+    workers: [
+      {
+        id: 'mj',
+        initials: 'MJ',
+        name: 'Mike Johnson',
+        specialty: 'HVAC Specialist',
+        rating: 4.2,
+        phone: '+44 7700 654321',
+        description: 'Expert Heating & Cooling Repairs',
+        favorite: false,
+        category: 'hvac'
+      }
+    ]
+  },
+  {
+    id: 'appliances',
+    name: 'Appliances',
     workers: []
   },
   {
-    id: 'damp',
-    name: 'Damp & Mould',
+    id: 'pest-control',
+    name: 'Pest Control',
     workers: []
   },
   {
-    id: 'general',
-    name: 'General',
+    id: 'security',
+    name: 'Locks/Security',
+    workers: []
+  },
+  {
+    id: 'painting',
+    name: 'Painting/Walls',
+    workers: []
+  },
+  {
+    id: 'flooring',
+    name: 'Flooring',
+    workers: []
+  },
+  {
+    id: 'windows-doors',
+    name: 'Windows/Doors',
+    workers: []
+  },
+  {
+    id: 'landscaping',
+    name: 'Landscaping',
+    workers: []
+  },
+  {
+    id: 'other',
+    name: 'Other',
     workers: []
   }
 ];

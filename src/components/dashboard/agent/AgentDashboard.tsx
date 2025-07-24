@@ -55,7 +55,14 @@ import {
   AlertTriangle,
   XCircle,
   Eye,
-  Users
+  Users,
+  Settings,
+  Bug,
+  Key,
+  Paintbrush,
+  Grid3X3,
+  DoorOpen,
+  TreePine
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,27 +71,57 @@ import { getAllWorkers, getFavoriteWorkers, getWorkersByCategory, getWorkerById 
 
 // Issue categories mapping to match database
 const issueCategories = {
-  'heating': {
-    icon: Thermometer,
-    color: 'text-orange-500',
-    bg: 'bg-orange-100'
-  },
-  'plumbing': {
+  'Plumbing': {
     icon: Droplets,
     color: 'text-blue-500',
     bg: 'bg-blue-100'
   },
-  'electrical': {
+  'Electrical': {
     icon: Zap,
     color: 'text-yellow-500',
     bg: 'bg-yellow-100'
   },
-  'kitchen': {
-    icon: Home,
+  'HVAC': {
+    icon: Thermometer,
+    color: 'text-green-500',
+    bg: 'bg-green-100'
+  },
+  'Appliances': {
+    icon: Settings,
     color: 'text-purple-500',
     bg: 'bg-purple-100'
   },
-  'general': {
+  'Pest Control': {
+    icon: Bug,
+    color: 'text-red-500',
+    bg: 'bg-red-100'
+  },
+  'Locks/Security': {
+    icon: Key,
+    color: 'text-indigo-500',
+    bg: 'bg-indigo-100'
+  },
+  'Painting/Walls': {
+    icon: Paintbrush,
+    color: 'text-orange-500',
+    bg: 'bg-orange-100'
+  },
+  'Flooring': {
+    icon: Grid3X3,
+    color: 'text-amber-500',
+    bg: 'bg-amber-100'
+  },
+  'Windows/Doors': {
+    icon: DoorOpen,
+    color: 'text-cyan-500',
+    bg: 'bg-cyan-100'
+  },
+  'Landscaping': {
+    icon: TreePine,
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-100'
+  },
+  'Other': {
     icon: Wrench,
     color: 'text-gray-500',
     bg: 'bg-gray-100'
@@ -568,11 +605,17 @@ export const AgentDashboard = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="heating">Heating</SelectItem>
-                    <SelectItem value="plumbing">Plumbing</SelectItem>
-                    <SelectItem value="electrical">Electrical</SelectItem>
-                    <SelectItem value="kitchen">Kitchen</SelectItem>
-                    <SelectItem value="general">General</SelectItem>
+                    <SelectItem value="Plumbing">Plumbing</SelectItem>
+                    <SelectItem value="Electrical">Electrical</SelectItem>
+                    <SelectItem value="HVAC">HVAC</SelectItem>
+                    <SelectItem value="Appliances">Appliances</SelectItem>
+                    <SelectItem value="Pest Control">Pest Control</SelectItem>
+                    <SelectItem value="Locks/Security">Locks/Security</SelectItem>
+                    <SelectItem value="Painting/Walls">Painting/Walls</SelectItem>
+                    <SelectItem value="Flooring">Flooring</SelectItem>
+                    <SelectItem value="Windows/Doors">Windows/Doors</SelectItem>
+                    <SelectItem value="Landscaping">Landscaping</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

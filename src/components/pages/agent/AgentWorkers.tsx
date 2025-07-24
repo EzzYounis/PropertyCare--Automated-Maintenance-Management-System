@@ -30,26 +30,41 @@ import { useToast } from '@/hooks/use-toast';
 import { AgentWorkerDetail } from './AgentWorkerDetail';
 import { workerCategories } from '@/data/workers';
 
-// Add icons to categories
+// Add icons to categories matching tenant reporting categories
 const categories = workerCategories.map(category => ({
   ...category,
-  icon: category.id === 'heating' ? Thermometer :
-        category.id === 'plumbing' ? Droplets :
+  icon: category.id === 'plumbing' ? Droplets :
         category.id === 'electrical' ? Zap :
-        category.id === 'kitchen' ? Home :
-        category.id === 'damp' ? Droplets :
+        category.id === 'hvac' ? Thermometer :
+        category.id === 'appliances' ? Wrench :
+        category.id === 'pest-control' ? Shield :
+        category.id === 'security' ? Shield :
+        category.id === 'painting' ? Wrench :
+        category.id === 'flooring' ? Home :
+        category.id === 'windows-doors' ? Home :
+        category.id === 'landscaping' ? Home :
         Wrench,
-  color: category.id === 'heating' ? 'text-orange-500' :
-         category.id === 'plumbing' ? 'text-blue-500' :
+  color: category.id === 'plumbing' ? 'text-blue-500' :
          category.id === 'electrical' ? 'text-yellow-500' :
-         category.id === 'kitchen' ? 'text-purple-500' :
-         category.id === 'damp' ? 'text-teal-500' :
+         category.id === 'hvac' ? 'text-green-500' :
+         category.id === 'appliances' ? 'text-purple-500' :
+         category.id === 'pest-control' ? 'text-red-500' :
+         category.id === 'security' ? 'text-indigo-500' :
+         category.id === 'painting' ? 'text-orange-500' :
+         category.id === 'flooring' ? 'text-amber-500' :
+         category.id === 'windows-doors' ? 'text-cyan-500' :
+         category.id === 'landscaping' ? 'text-emerald-500' :
          'text-gray-500',
-  bg: category.id === 'heating' ? 'bg-orange-100' :
-      category.id === 'plumbing' ? 'bg-blue-100' :
+  bg: category.id === 'plumbing' ? 'bg-blue-100' :
       category.id === 'electrical' ? 'bg-yellow-100' :
-      category.id === 'kitchen' ? 'bg-purple-100' :
-      category.id === 'damp' ? 'bg-teal-100' :
+      category.id === 'hvac' ? 'bg-green-100' :
+      category.id === 'appliances' ? 'bg-purple-100' :
+      category.id === 'pest-control' ? 'bg-red-100' :
+      category.id === 'security' ? 'bg-indigo-100' :
+      category.id === 'painting' ? 'bg-orange-100' :
+      category.id === 'flooring' ? 'bg-amber-100' :
+      category.id === 'windows-doors' ? 'bg-cyan-100' :
+      category.id === 'landscaping' ? 'bg-emerald-100' :
       'bg-gray-100'
 }));
 
@@ -70,10 +85,44 @@ export const AgentWorkers = () => {
   const { toast } = useToast();
 
   const handleAddWorker = () => {
+    if (!newWorkerData.name || !newWorkerData.phone || !newWorkerData.specialty || !newWorkerData.category) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newWorker = {
+      id: Math.random().toString(36).substr(2, 9),
+      initials: newWorkerData.name.split(' ').map(n => n[0]).join('').toUpperCase(),
+      name: newWorkerData.name,
+      specialty: newWorkerData.specialty,
+      rating: 4.0,
+      phone: newWorkerData.phone,
+      description: newWorkerData.description,
+      favorite: false,
+      category: newWorkerData.category
+    };
+
+    const updatedData = workerData.map(category => {
+      if (category.id === newWorkerData.category) {
+        return {
+          ...category,
+          workers: [...category.workers, newWorker]
+        };
+      }
+      return category;
+    });
+
+    setWorkerData(updatedData);
+    
     toast({
       title: "Worker Added",
       description: "New worker has been successfully added to your team.",
     });
+    
     setIsModalOpen(false);
     setNewWorkerData({
       name: '',
@@ -82,6 +131,7 @@ export const AgentWorkers = () => {
       description: '',
       category: ''
     });
+    setSelectedCategories([]);
   };
 
   const handleCategoryToggle = (categoryId: string) => {
@@ -331,10 +381,10 @@ export const AgentWorkers = () => {
                 </div>
                 
                 <div>
-                  <Label>Categories *</Label>
+                  <Label>Category *</Label>
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     {categories.map((category) => {
-                      const isSelected = selectedCategories.includes(category.id);
+                      const isSelected = newWorkerData.category === category.id;
                       
                       return (
                         <div
@@ -344,7 +394,7 @@ export const AgentWorkers = () => {
                               ? 'border-agent bg-agent-secondary/10' 
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
-                          onClick={() => handleCategoryToggle(category.id)}
+                          onClick={() => setNewWorkerData({...newWorkerData, category: category.id})}
                         >
                           <div className={`p-1 rounded ${category.bg}`}>
                             <category.icon className={`w-4 h-4 ${category.color}`} />
