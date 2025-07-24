@@ -1,45 +1,42 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { 
   Search, 
   Plus, 
   Star, 
+  Heart, 
   Phone, 
-  Mail, 
-  MapPin,
-  Users,
-  Clock,
-  DollarSign,
-  Heart,
-  Filter,
   User,
-  Building,
-  Flame,
+  Wrench,
   Droplets,
   Zap,
-  ChefHat,
-  Wrench,
+  Thermometer,
+  Shield,
   Home,
-  MoreHorizontal
+  Wifi,
+  MoreHorizontal,
+  Eye,
+  Edit
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { AgentWorkerDetail } from './AgentWorkerDetail';
 
 // Category data with icons
 const categories = [
   {
     id: 'heating',
     name: 'Heating & Boiler',
-    icon: Flame,
+    icon: Thermometer,
     color: 'text-orange-500',
-    bgColor: 'bg-orange-100',
+    bg: 'bg-orange-100',
     workers: [
       {
         id: 'mj',
@@ -49,7 +46,8 @@ const categories = [
         rating: 4.2,
         phone: '+44 7700 654321',
         description: 'Expert Boiler Repairs',
-        isFavorite: false
+        favorite: false,
+        category: 'heating'
       }
     ]
   },
@@ -58,7 +56,7 @@ const categories = [
     name: 'Plumbing',
     icon: Droplets,
     color: 'text-blue-500',
-    bgColor: 'bg-blue-100',
+    bg: 'bg-blue-100',
     workers: [
       {
         id: 'sd',
@@ -68,7 +66,8 @@ const categories = [
         rating: 4.8,
         phone: '+44 7700 123456',
         description: 'Professional Plumbing Services',
-        isFavorite: true
+        favorite: true,
+        category: 'plumbing'
       }
     ]
   },
@@ -77,15 +76,15 @@ const categories = [
     name: 'Electrical',
     icon: Zap,
     color: 'text-yellow-500',
-    bgColor: 'bg-yellow-100',
+    bg: 'bg-yellow-100',
     workers: []
   },
   {
     id: 'kitchen',
     name: 'Kitchen',
-    icon: ChefHat,
+    icon: Home,
     color: 'text-purple-500',
-    bgColor: 'bg-purple-100',
+    bg: 'bg-purple-100',
     workers: []
   },
   {
@@ -93,7 +92,7 @@ const categories = [
     name: 'Damp & Mould',
     icon: Droplets,
     color: 'text-teal-500',
-    bgColor: 'bg-teal-100',
+    bg: 'bg-teal-100',
     workers: []
   },
   {
@@ -101,23 +100,25 @@ const categories = [
     name: 'General',
     icon: Wrench,
     color: 'text-gray-500',
-    bgColor: 'bg-gray-100',
+    bg: 'bg-gray-100',
     workers: []
   }
 ];
 
 export const AgentWorkers = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [newWorkerForm, setNewWorkerForm] = useState({
-    fullName: '',
-    email: '',
+  const [newWorkerData, setNewWorkerData] = useState({
+    name: '',
     phone: '',
-    company: '',
-    specialization: '',
-    categories: [] as string[]
+    specialty: '',
+    description: '',
+    category: ''
   });
+  const [workerData, setWorkerData] = useState(categories);
   const { toast } = useToast();
 
   const handleAddWorker = () => {
@@ -125,14 +126,13 @@ export const AgentWorkers = () => {
       title: "Worker Added",
       description: "New worker has been successfully added to your team.",
     });
-    setIsAddWorkerOpen(false);
-    setNewWorkerForm({
-      fullName: '',
-      email: '',
+    setIsModalOpen(false);
+    setNewWorkerData({
+      name: '',
       phone: '',
-      company: '',
-      specialization: '',
-      categories: []
+      specialty: '',
+      description: '',
+      category: ''
     });
   };
 
@@ -145,10 +145,46 @@ export const AgentWorkers = () => {
   };
 
   const toggleFavorite = (categoryId: string, workerId: string) => {
+    const updatedData = workerData.map(category => {
+      if (category.id === categoryId) {
+        return {
+          ...category,
+          workers: category.workers.map(worker => 
+            worker.id === workerId 
+              ? { ...worker, favorite: !worker.favorite }
+              : worker
+          )
+        };
+      }
+      return category;
+    });
+    
+    setWorkerData(updatedData);
     toast({
       title: "Favorite Updated",
       description: "Worker favorite status has been updated.",
     });
+  };
+
+  const handleWorkerUpdate = (updatedWorker: any) => {
+    const updatedData = workerData.map(category => ({
+      ...category,
+      workers: category.workers.map(worker => 
+        worker.id === updatedWorker.id ? updatedWorker : worker
+      )
+    }));
+    
+    setWorkerData(updatedData);
+  };
+
+  const handleViewWorker = (worker: any) => {
+    setSelectedWorker(worker);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleAddWorkerToCategory = (categoryId: string) => {
+    setNewWorkerData({ ...newWorkerData, category: categoryId });
+    setIsModalOpen(true);
   };
 
   const renderStars = (rating: number) => {
@@ -174,8 +210,8 @@ export const AgentWorkers = () => {
         </div>
         
         <Button 
-          onClick={() => setIsAddWorkerOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={() => setIsModalOpen(true)}
+          className="bg-agent hover:bg-agent-secondary text-white"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add New Worker
@@ -184,113 +220,115 @@ export const AgentWorkers = () => {
 
       {/* Categories */}
       <div className="space-y-6">
-        {categories.map((category) => {
-          const IconComponent = category.icon;
-          const workerCount = category.workers.length;
-          
-          return (
-            <Card key={category.id} className="overflow-hidden">
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${category.bgColor}`}>
-                      <IconComponent className={`w-5 h-5 ${category.color}`} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold">{category.name}</h3>
-                    </div>
+        {workerData.map((category) => (
+          <Card key={category.id} className="mb-6">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-3">
+                  <div className={`p-3 rounded-lg ${category.bg}`}>
+                    <category.icon className={`h-6 w-6 ${category.color}`} />
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-muted-foreground">
-                      {workerCount} worker{workerCount !== 1 ? 's' : ''}
-                    </span>
-                    <Button variant="ghost" size="sm">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              
+                  <span className="text-xl">{category.name}</span>
+                  <Badge variant="secondary">{category.workers.length}</Badge>
+                </CardTitle>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => handleAddWorkerToCategory(category.id)}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Worker
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
               {category.workers.length > 0 ? (
-                <CardContent className="pt-0">
-                  <div className="grid gap-4">
-                    {category.workers.map((worker) => (
-                      <div 
-                        key={worker.id}
-                        className={`p-4 border rounded-lg transition-colors ${
-                          worker.isFavorite 
-                            ? 'border-yellow-300 bg-yellow-50' 
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center font-semibold text-gray-700">
-                              {worker.initials}
-                            </div>
-                            
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h4 className="font-semibold">{worker.name}</h4>
-                                {worker.isFavorite && (
-                                  <Heart className="w-4 h-4 text-yellow-500 fill-current" />
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground mb-2">{worker.specialty}</p>
-                              
-                              <div className="flex items-center gap-1 mb-2">
-                                {renderStars(worker.rating)}
-                                <span className="text-sm text-muted-foreground ml-1">{worker.rating}</span>
-                              </div>
-                              
-                              <p className="text-sm text-muted-foreground">{worker.phone}</p>
-                              <p className="text-sm text-muted-foreground">{worker.description}</p>
-                            </div>
+                <div className="grid gap-4">
+                  {category.workers.map((worker) => (
+                    <Card key={worker.id} className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-gradient-agent rounded-full flex items-center justify-center text-white font-bold">
+                            {worker.initials}
                           </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleFavorite(category.id, worker.id)}
-                            >
-                              <Heart 
-                                className={`w-4 h-4 ${
-                                  worker.isFavorite 
-                                    ? 'text-yellow-500 fill-current' 
-                                    : 'text-gray-400'
-                                }`} 
-                              />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
+                          <div>
+                            <h4 className="font-semibold text-lg">{worker.name}</h4>
+                            <p className="text-muted-foreground">{worker.specialty}</p>
                           </div>
                         </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleFavorite(category.id, worker.id)}
+                          >
+                            <Heart className={`w-4 h-4 ${worker.favorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewWorker(worker)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleViewWorker(worker)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit Worker
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
+                      
+                      <div className="mt-3 flex items-center space-x-1">
+                        {renderStars(worker.rating)}
+                        <span className="text-sm text-muted-foreground ml-2">
+                          {worker.rating}.0 rating
+                        </span>
+                      </div>
+                      
+                      <div className="mt-2 flex items-center space-x-4 text-sm text-muted-foreground">
+                        <div className="flex items-center space-x-1">
+                          <Phone className="w-4 h-4" />
+                          <span>{worker.phone}</span>
+                        </div>
+                      </div>
+                      
+                      <p className="mt-2 text-sm text-muted-foreground">{worker.description}</p>
+                    </Card>
+                  ))}
+                </div>
               ) : (
-                <CardContent className="pt-0">
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>No workers in this category yet</p>
-                  </div>
-                </CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>No workers in this category yet</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={() => handleAddWorkerToCategory(category.id)}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add First Worker
+                  </Button>
+                </div>
               )}
-            </Card>
-          );
-        })}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Add New Worker Modal */}
-      <Dialog open={isAddWorkerOpen} onOpenChange={setIsAddWorkerOpen}>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center space-x-2">
               <User className="w-5 h-5" />
-              Add New Worker
+              <span>Add New Worker</span>
             </DialogTitle>
           </DialogHeader>
           
@@ -300,22 +338,12 @@ export const AgentWorkers = () => {
               <h3 className="text-lg font-semibold mb-4">Personal Information</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Label htmlFor="name">Full Name *</Label>
                   <Input
-                    id="fullName"
+                    id="name"
                     placeholder="John Smith"
-                    value={newWorkerForm.fullName}
-                    onChange={(e) => setNewWorkerForm({...newWorkerForm, fullName: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email Address *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="john@example.com"
-                    value={newWorkerForm.email}
-                    onChange={(e) => setNewWorkerForm({...newWorkerForm, email: e.target.value})}
+                    value={newWorkerData.name}
+                    onChange={(e) => setNewWorkerData({...newWorkerData, name: e.target.value})}
                   />
                 </div>
                 <div>
@@ -323,17 +351,8 @@ export const AgentWorkers = () => {
                   <Input
                     id="phone"
                     placeholder="+44 7XXX XXXXXX"
-                    value={newWorkerForm.phone}
-                    onChange={(e) => setNewWorkerForm({...newWorkerForm, phone: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="company">Company *</Label>
-                  <Input
-                    id="company"
-                    placeholder="ABC Plumbing Ltd"
-                    value={newWorkerForm.company}
-                    onChange={(e) => setNewWorkerForm({...newWorkerForm, company: e.target.value})}
+                    value={newWorkerData.phone}
+                    onChange={(e) => setNewWorkerData({...newWorkerData, phone: e.target.value})}
                   />
                 </div>
               </div>
@@ -344,12 +363,22 @@ export const AgentWorkers = () => {
               <h3 className="text-lg font-semibold mb-4">Professional Information</h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="specialization">Specialization *</Label>
+                  <Label htmlFor="specialty">Specialty *</Label>
                   <Input
-                    id="specialization"
+                    id="specialty"
                     placeholder="Heating Engineer, Electrician, etc."
-                    value={newWorkerForm.specialization}
-                    onChange={(e) => setNewWorkerForm({...newWorkerForm, specialization: e.target.value})}
+                    value={newWorkerData.specialty}
+                    onChange={(e) => setNewWorkerData({...newWorkerData, specialty: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Brief description of expertise..."
+                    value={newWorkerData.description}
+                    onChange={(e) => setNewWorkerData({...newWorkerData, description: e.target.value})}
                   />
                 </div>
                 
@@ -357,21 +386,20 @@ export const AgentWorkers = () => {
                   <Label>Categories *</Label>
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     {categories.map((category) => {
-                      const IconComponent = category.icon;
                       const isSelected = selectedCategories.includes(category.id);
                       
                       return (
                         <div
                           key={category.id}
-                          className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                          className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
                             isSelected 
-                              ? 'border-blue-500 bg-blue-50' 
+                              ? 'border-agent bg-agent-secondary/10' 
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                           onClick={() => handleCategoryToggle(category.id)}
                         >
-                          <div className={`p-1 rounded ${category.bgColor}`}>
-                            <IconComponent className={`w-4 h-4 ${category.color}`} />
+                          <div className={`p-1 rounded ${category.bg}`}>
+                            <category.icon className={`w-4 h-4 ${category.color}`} />
                           </div>
                           <span className="text-sm font-medium">{category.name}</span>
                         </div>
@@ -382,17 +410,17 @@ export const AgentWorkers = () => {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-4 border-t">
+            <div className="flex space-x-3 pt-4 border-t">
               <Button 
                 variant="outline" 
-                onClick={() => setIsAddWorkerOpen(false)}
+                onClick={() => setIsModalOpen(false)}
                 className="flex-1"
               >
                 Cancel
               </Button>
               <Button 
                 onClick={handleAddWorker}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                className="flex-1 bg-agent hover:bg-agent-secondary text-white"
               >
                 Add Worker
               </Button>
@@ -400,6 +428,17 @@ export const AgentWorkers = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Worker Detail Modal */}
+      <AgentWorkerDetail
+        worker={selectedWorker}
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedWorker(null);
+        }}
+        onUpdate={handleWorkerUpdate}
+      />
     </div>
   );
 };

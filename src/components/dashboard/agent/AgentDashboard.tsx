@@ -1,263 +1,264 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+import React, { useState, useEffect } from 'react';
 import { 
-  Ticket, 
-  Search, 
-  Filter, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle,
-  Wrench,
-  User,
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
   Calendar,
-  DollarSign,
-  Plus,
-  Eye,
-  UserPlus,
-  Zap,
-  Phone,
-  Flame,
+  Clock,
+  Wrench,
   Droplets,
-  ChefHat
+  Zap,
+  Thermometer,
+  Shield,
+  Home,
+  Wifi,
+  Search,
+  Filter,
+  User,
+  MapPin,
+  Phone,
+  Mail,
+  FileText,
+  MessageSquare,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  Eye
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
 
-// Issue categories with icons
+// Issue categories mapping to match database
 const issueCategories = {
-  'Heating & Boiler': {
-    icon: Flame,
+  'heating': {
+    icon: Thermometer,
     color: 'text-orange-500',
-    bgColor: 'bg-orange-100'
+    bg: 'bg-orange-100'
   },
-  'Plumbing': {
+  'plumbing': {
     icon: Droplets,
     color: 'text-blue-500',
-    bgColor: 'bg-blue-100'
+    bg: 'bg-blue-100'
   },
-  'Electrical': {
+  'electrical': {
     icon: Zap,
     color: 'text-yellow-500',
-    bgColor: 'bg-yellow-100'
+    bg: 'bg-yellow-100'
   },
-  'Kitchen': {
-    icon: ChefHat,
+  'kitchen': {
+    icon: Home,
     color: 'text-purple-500',
-    bgColor: 'bg-purple-100'
+    bg: 'bg-purple-100'
   },
-  'General': {
+  'general': {
     icon: Wrench,
     color: 'text-gray-500',
-    bgColor: 'bg-gray-100'
+    bg: 'bg-gray-100'
   }
 };
 
-// Mock data for tickets
-const mockTickets = [
-  {
-    id: 1,
-    category: 'Heating & Boiler',
-    title: 'Heating System Failure',
-    description: 'Boiler not working, no heat',
-    propertyAddress: '45 Baker Street, London NW1 6XE',
-    tenantName: 'Sarah Johnson',
-    phoneNumber: '+44 7700 123456',
-    priority: 'Urgent',
-    status: 'Open',
-    assignedWorker: 'Not assigned',
-    claimedBy: 'Not claimed',
-    claimedDate: '8 minutes ago',
-    actions: ['view', 'claim'],
-    categoryColor: 'bg-orange-100 text-orange-700',
-    priorityColor: 'bg-red-100 text-red-700',
-    statusColor: 'bg-blue-100 text-blue-700'
-  },
-  {
-    id: 2,
-    category: 'Plumbing',
-    title: 'Kitchen Sink Leak',
-    description: 'Water dripping from kitchen sink',
-    propertyAddress: '78 High Street, London N1 2AB',
-    tenantName: 'Emma Wilson',
-    phoneNumber: '+44 7700 234567',
-    priority: 'Medium',
-    status: 'Claimed',
-    assignedWorker: 'Sarah Davis Electrician',
-    claimedBy: 'Michael Brown',
-    claimedDate: '11 minutes ago',
-    actions: ['view', 'assign', 'quickAssign'],
-    categoryColor: 'bg-blue-100 text-blue-700',
-    priorityColor: 'bg-yellow-100 text-yellow-700',
-    statusColor: 'bg-gray-100 text-gray-700'
-  },
-  {
-    id: 3,
-    category: 'Electrical',
-    title: 'Electrical Outlet Not Working',
-    description: 'Bedroom power outlet needs repair',
-    propertyAddress: '156 Cambridge Road, London E2 7QB',
-    tenantName: 'Michael Chen',
-    phoneNumber: '+44 7700 456789',
-    priority: 'High',
-    status: 'In progress',
-    assignedWorker: 'David Wilson Kitchen Specialist',
-    claimedBy: 'Emma Wilson',
-    claimedDate: '16 minutes ago',
-    actions: ['view'],
-    categoryColor: 'bg-yellow-100 text-yellow-700',
-    priorityColor: 'bg-orange-100 text-orange-700',
-    statusColor: 'bg-orange-100 text-orange-700'
-  },
-  {
-    id: 4,
-    category: 'General',
-    title: 'Squeaky Door Hinges',
-    description: 'Front door hinges making noise',
-    propertyAddress: '92 Queen Street, London SW1 3CD',
-    tenantName: 'Robert Taylor',
-    phoneNumber: '+44 7700 345678',
-    priority: 'Low',
-    status: 'Open',
-    assignedWorker: 'Not assigned',
-    claimedBy: 'Not claimed',
-    claimedDate: '43 minutes ago',
-    actions: ['view', 'claim'],
-    categoryColor: 'bg-gray-100 text-gray-700',
-    priorityColor: 'bg-green-100 text-green-700',
-    statusColor: 'bg-blue-100 text-blue-700'
-  }
-];
-
 export const AgentDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All Categories');
-  const [priorityFilter, setPriorityFilter] = useState('All Priorities');
-  const [statusFilter, setStatusFilter] = useState('All Statuses');
-  const [addressFilter, setAddressFilter] = useState('');
-  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const handleClaimTicket = (ticketId: number) => {
+  useEffect(() => {
+    fetchMaintenanceRequests();
+  }, []);
+
+  const fetchMaintenanceRequests = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .select(`
+          *,
+          profiles:tenant_id (
+            name,
+            username
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching maintenance requests:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load maintenance requests",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setTickets(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Error", 
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClaimTicket = (ticketId: string) => {
     toast({
       title: "Ticket Claimed",
       description: "You have successfully claimed this ticket.",
     });
   };
 
-  const handleQuickAssign = (ticketId: number) => {
+  const handleQuickAssign = (ticketId: string) => {
     toast({
       title: "Worker Assigned",
       description: "Your favorite worker has been automatically assigned to this ticket.",
     });
   };
 
-  const handleAssignWorker = (ticketId: number) => {
+  const handleAssignWorker = (ticketId: string) => {
     toast({
       title: "Worker Assignment",
       description: "Worker has been assigned to this ticket.",
     });
   };
 
-  const getUnassignedTickets = () => mockTickets.filter(t => t.status === 'Open' && t.claimedBy === 'Not claimed');
-  const getMyTickets = () => mockTickets.filter(t => t.claimedBy !== 'Not claimed');
-  const getAllTickets = () => mockTickets;
+  // Helper functions to filter tickets
+  const getUnassignedTickets = () => tickets.filter(ticket => 
+    ticket.status === 'submitted' || !ticket.assigned_worker_id
+  );
 
-  const renderTicketTable = (tickets: any[]) => (
+  const getMyTickets = () => tickets.filter(ticket => 
+    ticket.assigned_worker_id === 'current_agent' // Update with actual agent ID
+  );
+
+  const getAllTickets = () => tickets;
+
+  // Filter tickets based on search and filters
+  const filteredTickets = (ticketList) => {
+    return ticketList.filter(ticket => {
+      const matchesSearch = ticket.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           ticket.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           ticket.profiles?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCategory = categoryFilter === 'all' || ticket.category === categoryFilter;
+      const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter;
+      const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
+
+      return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
+    });
+  };
+
+  const renderTicketTable = (ticketList) => (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Issue Category</TableHead>
-          <TableHead>Issue Description</TableHead>
-          <TableHead>Property Address</TableHead>
-          <TableHead>Tenant Name</TableHead>
-          <TableHead>Phone Number</TableHead>
+          <TableHead>Issue</TableHead>
+          <TableHead>Tenant</TableHead>
           <TableHead>Priority</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Assigned Worker</TableHead>
-          <TableHead>Claimed Date/Time</TableHead>
+          <TableHead>Created</TableHead>
           <TableHead>Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {tickets.map((ticket) => (
+        {filteredTickets(ticketList).map((ticket) => (
           <TableRow key={ticket.id}>
             <TableCell>
-              <div className="flex items-center gap-2">
-                {issueCategories[ticket.category as keyof typeof issueCategories] && (
-                  <div className={`p-1 rounded ${issueCategories[ticket.category as keyof typeof issueCategories].bgColor}`}>
-                    {React.createElement(issueCategories[ticket.category as keyof typeof issueCategories].icon, {
-                      className: `w-4 h-4 ${issueCategories[ticket.category as keyof typeof issueCategories].color}`
-                    })}
-                  </div>
-                )}
-                <Badge className={ticket.categoryColor}>
-                  {ticket.category}
-                </Badge>
+              <div className="flex items-center space-x-2">
+                <div className={`p-2 rounded-lg ${issueCategories[ticket.category]?.bg || 'bg-muted'}`}>
+                  {React.createElement(issueCategories[ticket.category]?.icon || Wrench, {
+                    className: `h-4 w-4 ${issueCategories[ticket.category]?.color || 'text-muted-foreground'}`
+                  })}
+                </div>
+                <div>
+                  <p className="font-medium text-sm">{ticket.title}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{ticket.category}</p>
+                </div>
               </div>
             </TableCell>
             <TableCell>
               <div>
-                <div className="font-medium">{ticket.title}</div>
-                <div className="text-sm text-muted-foreground">{ticket.description}</div>
+                <p className="text-sm font-medium">{ticket.profiles?.name || 'Unknown'}</p>
+                <p className="text-xs text-muted-foreground">{ticket.room || 'N/A'}</p>
               </div>
             </TableCell>
-            <TableCell>{ticket.propertyAddress}</TableCell>
-            <TableCell>{ticket.tenantName}</TableCell>
-            <TableCell>{ticket.phoneNumber}</TableCell>
             <TableCell>
-              <Badge className={ticket.priorityColor}>
+              <Badge variant={ticket.priority === 'urgent' ? 'destructive' : 
+                            ticket.priority === 'high' ? 'destructive' : 
+                            ticket.priority === 'medium' ? 'default' : 'secondary'}>
                 {ticket.priority}
               </Badge>
             </TableCell>
             <TableCell>
-              <Badge className={ticket.statusColor}>
-                {ticket.status}
-              </Badge>
+              <div className="flex items-center space-x-1">
+                {ticket.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
+                {ticket.status === 'in_progress' && <Clock className="h-4 w-4 text-blue-500" />}
+                {ticket.status === 'assigned' && <User className="h-4 w-4 text-yellow-500" />}
+                {ticket.status === 'submitted' && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                <span className={`text-sm capitalize ${
+                  ticket.status === 'completed' ? 'text-green-700' :
+                  ticket.status === 'in_progress' ? 'text-blue-700' :
+                  ticket.status === 'assigned' ? 'text-yellow-700' :
+                  'text-red-700'
+                }`}>
+                  {ticket.status.replace('_', ' ')}
+                </span>
+              </div>
             </TableCell>
-            <TableCell>{ticket.assignedWorker}</TableCell>
-            <TableCell>{ticket.claimedDate}</TableCell>
             <TableCell>
-              <div className="flex gap-1">
-                <Button size="sm" variant="outline" onClick={() => setSelectedTicket(ticket)}>
+              <p className="text-sm">{ticket.assigned_worker_id || 'Unassigned'}</p>
+            </TableCell>
+            <TableCell>
+              <p className="text-sm">{new Date(ticket.created_at).toLocaleDateString()}</p>
+            </TableCell>
+            <TableCell>
+              <div className="flex space-x-1">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setSelectedTicket(ticket)}
+                >
                   <Eye className="w-4 h-4 mr-1" />
-                  View Details
+                  View
                 </Button>
-                {ticket.actions.includes('claim') && (
+                {ticket.status === 'submitted' && (
                   <Button 
-                    size="sm" 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    size="sm"
                     onClick={() => handleClaimTicket(ticket.id)}
                   >
-                    <Plus className="w-4 h-4 mr-1" />
                     Claim
-                  </Button>
-                )}
-                {ticket.actions.includes('quickAssign') && (
-                  <Button 
-                    size="sm" 
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => handleQuickAssign(ticket.id)}
-                  >
-                    <Zap className="w-4 h-4 mr-1" />
-                    Quick Assign
-                  </Button>
-                )}
-                {ticket.actions.includes('assign') && (
-                  <Button 
-                    size="sm" 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => handleAssignWorker(ticket.id)}
-                  >
-                    <UserPlus className="w-4 h-4 mr-1" />
-                    Assign Worker
                   </Button>
                 )}
               </div>
@@ -268,13 +269,27 @@ export const AgentDashboard = () => {
     </Table>
   );
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground mt-2">Loading tickets...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Maintenance Tickets</h1>
-          <p className="text-muted-foreground">10 total tickets • 5 active • 2 urgent</p>
+          <h1 className="text-3xl font-bold text-foreground">Agent Dashboard</h1>
+          <p className="text-muted-foreground">
+            {tickets.length} total tickets • {getUnassignedTickets().length} unassigned • 
+            {tickets.filter(t => t.priority === 'urgent').length} urgent
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -287,6 +302,62 @@ export const AgentDashboard = () => {
             />
           </div>
         </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+                <FileText className="h-4 w-4 text-primary" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-muted-foreground">Total Tickets</p>
+                <p className="text-2xl font-bold">{tickets.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                <AlertTriangle className="h-4 w-4 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-muted-foreground">Unassigned</p>
+                <p className="text-2xl font-bold">{getUnassignedTickets().length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                <XCircle className="h-4 w-4 text-red-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-muted-foreground">Urgent</p>
+                <p className="text-2xl font-bold">{tickets.filter(t => t.priority === 'urgent').length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                <User className="h-4 w-4 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-muted-foreground">My Tickets</p>
+                <p className="text-2xl font-bold">{getMyTickets().length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content */}
@@ -304,17 +375,18 @@ export const AgentDashboard = () => {
               <span className="text-sm font-medium">Filter by:</span>
               
               <div className="flex items-center gap-2">
-                <span className="text-sm">Issue Category</span>
+                <span className="text-sm">Category</span>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger className="w-40">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Categories">All Categories</SelectItem>
-                    <SelectItem value="Heating & Boiler">Heating & Boiler</SelectItem>
-                    <SelectItem value="Plumbing">Plumbing</SelectItem>
-                    <SelectItem value="Electrical">Electrical</SelectItem>
-                    <SelectItem value="General">General</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    <SelectItem value="heating">Heating</SelectItem>
+                    <SelectItem value="plumbing">Plumbing</SelectItem>
+                    <SelectItem value="electrical">Electrical</SelectItem>
+                    <SelectItem value="kitchen">Kitchen</SelectItem>
+                    <SelectItem value="general">General</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -326,11 +398,11 @@ export const AgentDashboard = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Priorities">All Priorities</SelectItem>
-                    <SelectItem value="Urgent">Urgent</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="all">All Priorities</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -342,33 +414,14 @@ export const AgentDashboard = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="All Statuses">All Statuses</SelectItem>
-                    <SelectItem value="Open">Open</SelectItem>
-                    <SelectItem value="Claimed">Claimed</SelectItem>
-                    <SelectItem value="In progress">In progress</SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="assigned">Assigned</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm">Property Address</span>
-                <Input
-                  placeholder="Search address..."
-                  value={addressFilter}
-                  onChange={(e) => setAddressFilter(e.target.value)}
-                  className="w-60"
-                />
-              </div>
-
-              <Button variant="outline" size="sm">
-                Clear Filters
-              </Button>
-
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Filter className="w-4 h-4 mr-1" />
-                Filter
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -399,142 +452,15 @@ export const AgentDashboard = () => {
       </Tabs>
 
       {/* Ticket Details Modal */}
-      <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Ticket Details - #{selectedTicket?.id}</DialogTitle>
-          </DialogHeader>
-          
-          {selectedTicket && (
-            <div className="grid grid-cols-2 gap-8">
-              {/* Left Column */}
-              <div className="space-y-6">
-                {/* Issue Information */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Issue Information</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-sm font-medium">Title:</Label>
-                      <p className="text-sm mt-1">{selectedTicket.title}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Description:</Label>
-                      <p className="text-sm mt-1">{selectedTicket.description}</p>
-                    </div>
-                    <div className="flex gap-4">
-                      <div>
-                        <Label className="text-sm font-medium">Priority:</Label>
-                        <Badge className={`mt-1 ${selectedTicket.priorityColor}`}>
-                          {selectedTicket.priority} Priority
-                        </Badge>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium">Status:</Label>
-                        <Badge className={`mt-1 ${selectedTicket.statusColor}`}>
-                          {selectedTicket.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contact Information */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Contact Information</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-sm font-medium">Tenant:</Label>
-                      <p className="text-sm mt-1">{selectedTicket.tenantName}</p>
-                      <p className="text-sm text-muted-foreground">📞 {selectedTicket.phoneNumber}</p>
-                      <p className="text-sm text-muted-foreground">✉️ sarah.johnson@email.com</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Landlord:</Label>
-                      <p className="text-sm mt-1">Michael Brown</p>
-                      <p className="text-sm text-muted-foreground">📞 +44 7700 987654</p>
-                      <p className="text-sm text-muted-foreground">✉️ michael.brown@email.com</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Property:</Label>
-                      <p className="text-sm mt-1">📍 {selectedTicket.propertyAddress}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column */}
-              <div className="space-y-6">
-                {/* Progress Timeline */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Progress Timeline</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Zap className="w-4 h-4 text-yellow-500" />
-                      <span className="text-sm font-medium">AI Prediction</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-sm">Estimated Cost</Label>
-                        <p className="text-lg font-semibold">£450.00-650.00</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm">Estimated Time</Label>
-                        <p className="text-lg font-semibold">2-4 hours</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Worker Quote & Approval (for assigned tickets) */}
-                {selectedTicket.status !== 'Open' && (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Worker Quote & Approval</h3>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm">Worker Quote - Cost</Label>
-                          <p className="text-lg font-semibold">£75.00</p>
-                        </div>
-                        <div>
-                          <Label className="text-sm">Worker Quote - Time</Label>
-                          <p className="text-lg font-semibold">0 hours 45 min</p>
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground">Quote submitted 34 minutes ago</p>
-                      
-                      <div>
-                        <Label className="text-sm">Landlord Approval:</Label>
-                        <Badge className="ml-2 bg-green-100 text-green-700">✓ Approved</Badge>
-                        <p className="text-sm text-muted-foreground mt-1">Approved 30 minutes ago</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Actions</h3>
-                  <Button variant="outline" className="w-full mb-3">
-                    💬 Message Tenant
-                  </Button>
-                </div>
-
-                {/* Internal Notes */}
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Internal Notes</h3>
-                  <Textarea
-                    placeholder="Add internal note..."
-                    className="min-h-24 mb-3"
-                  />
-                  <Button variant="outline" size="sm">
-                    + Add Note
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {selectedTicket && (
+        <MaintenanceDetail
+          maintenanceRequest={selectedTicket}
+          isOpen={!!selectedTicket}
+          onClose={() => setSelectedTicket(null)}
+          onUpdate={fetchMaintenanceRequests}
+          userRole="agent"
+        />
+      )}
     </div>
   );
 };

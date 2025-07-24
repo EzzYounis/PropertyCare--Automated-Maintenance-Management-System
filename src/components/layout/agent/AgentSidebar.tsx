@@ -25,13 +25,10 @@ import {
 
 const menuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
-  { title: 'Tickets', url: '/tickets', icon: Ticket },
   { title: 'Workers', url: '/workers', icon: Users },
   { title: 'Estimates', url: '/estimates', icon: Calculator },
   { title: 'Messages', url: '/messages', icon: MessageSquare },
   { title: 'Invoices', url: '/invoices', icon: FileText },
-  { title: 'Schedule', url: '/schedule', icon: Calendar },
-  { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
 export const AgentSidebar = () => {
