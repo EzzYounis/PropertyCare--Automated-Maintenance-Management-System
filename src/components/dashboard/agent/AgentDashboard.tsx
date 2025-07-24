@@ -24,9 +24,41 @@ import {
   Eye,
   UserPlus,
   Zap,
-  Phone
+  Phone,
+  Flame,
+  Droplets,
+  ChefHat
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+// Issue categories with icons
+const issueCategories = {
+  'Heating & Boiler': {
+    icon: Flame,
+    color: 'text-orange-500',
+    bgColor: 'bg-orange-100'
+  },
+  'Plumbing': {
+    icon: Droplets,
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-100'
+  },
+  'Electrical': {
+    icon: Zap,
+    color: 'text-yellow-500',
+    bgColor: 'bg-yellow-100'
+  },
+  'Kitchen': {
+    icon: ChefHat,
+    color: 'text-purple-500',
+    bgColor: 'bg-purple-100'
+  },
+  'General': {
+    icon: Wrench,
+    color: 'text-gray-500',
+    bgColor: 'bg-gray-100'
+  }
+};
 
 // Mock data for tickets
 const mockTickets = [
@@ -158,9 +190,18 @@ export const AgentDashboard = () => {
         {tickets.map((ticket) => (
           <TableRow key={ticket.id}>
             <TableCell>
-              <Badge className={ticket.categoryColor}>
-                {ticket.category}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {issueCategories[ticket.category as keyof typeof issueCategories] && (
+                  <div className={`p-1 rounded ${issueCategories[ticket.category as keyof typeof issueCategories].bgColor}`}>
+                    {React.createElement(issueCategories[ticket.category as keyof typeof issueCategories].icon, {
+                      className: `w-4 h-4 ${issueCategories[ticket.category as keyof typeof issueCategories].color}`
+                    })}
+                  </div>
+                )}
+                <Badge className={ticket.categoryColor}>
+                  {ticket.category}
+                </Badge>
+              </div>
             </TableCell>
             <TableCell>
               <div>
