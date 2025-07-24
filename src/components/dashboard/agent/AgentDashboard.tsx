@@ -25,6 +25,14 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { 
   Calendar,
   Clock,
@@ -46,7 +54,8 @@ import {
   CheckCircle,
   AlertTriangle,
   XCircle,
-  Eye
+  Eye,
+  Users
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -89,7 +98,19 @@ export const AgentDashboard = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [selectedTicketForAssign, setSelectedTicketForAssign] = useState(null);
+  const [workers, setWorkers] = useState([]);
   const { toast } = useToast();
+
+  // Mock workers data - in real app, this would come from database
+  const mockWorkers = [
+    { id: 'worker_1', name: 'John Smith', category: 'plumbing', rating: 4.8, specialties: ['pipes', 'leaks', 'installations'] },
+    { id: 'worker_2', name: 'Mike Johnson', category: 'electrical', rating: 4.9, specialties: ['wiring', 'outlets', 'lighting'] },
+    { id: 'worker_3', name: 'Sarah Brown', category: 'heating', rating: 4.7, specialties: ['boilers', 'radiators', 'thermostats'] },
+    { id: 'worker_4', name: 'Tom Wilson', category: 'general', rating: 4.6, specialties: ['repairs', 'maintenance', 'installations'] },
+    { id: 'worker_5', name: 'Lisa Davis', category: 'kitchen', rating: 4.8, specialties: ['appliances', 'cabinets', 'plumbing'] },
+  ];
 
   useEffect(() => {
     fetchMaintenanceRequests();
@@ -225,13 +246,13 @@ export const AgentDashboard = () => {
     }
   };
 
-  const handleAssignWorker = async (ticketId: string) => {
+  const handleAssignWorker = async (ticketId: string, workerId: string) => {
     try {
       // Update the ticket to assign it to a specific worker
       const { error } = await supabase
         .from('maintenance_requests')
         .update({ 
-          assigned_worker_id: 'selected_worker', // You should replace this with actual selected worker ID
+          assigned_worker_id: workerId,
           status: 'assigned'
         })
         .eq('id', ticketId);
@@ -246,12 +267,15 @@ export const AgentDashboard = () => {
         return;
       }
 
+      const worker = mockWorkers.find(w => w.id === workerId);
       toast({
-        title: "Worker Assignment",
-        description: "Worker has been assigned to this ticket.",
+        title: "Worker Assigned",
+        description: `${worker?.name || 'Worker'} has been assigned to this ticket.`,
       });
       
-      // Refresh the data to show updated status
+      // Close modal and refresh data
+      setAssignModalOpen(false);
+      setSelectedTicketForAssign(null);
       await fetchMaintenanceRequests();
     } catch (error) {
       console.error('Error assigning worker:', error);
@@ -261,6 +285,16 @@ export const AgentDashboard = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const openAssignModal = (ticket: any) => {
+    setSelectedTicketForAssign(ticket);
+    // Filter workers by ticket category
+    const categoryWorkers = mockWorkers.filter(worker => 
+      worker.category === ticket.category || worker.category === 'general'
+    );
+    setWorkers(categoryWorkers);
+    setAssignModalOpen(true);
   };
 
   // Helper functions to filter tickets
@@ -373,13 +407,22 @@ export const AgentDashboard = () => {
                   </Button>
                 )}
                 {ticket.assigned_worker_id && ticket.status === 'assigned' && (
-                  <Button 
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleQuickAssign(ticket.id)}
-                  >
-                    Start Work
-                  </Button>
+                  <div className="flex flex-col gap-1">
+                    <Button 
+                      size="sm"
+                      onClick={() => handleQuickAssign(ticket.id)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      Quick Assign
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={() => openAssignModal(ticket)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Assign
+                    </Button>
+                  </div>
                 )}
               </div>
             </TableCell>
@@ -580,6 +623,62 @@ export const AgentDashboard = () => {
           onUpdate={fetchMaintenanceRequests}
         />
       )}
+
+      {/* Worker Assignment Modal */}
+      <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Assign Worker</DialogTitle>
+            <DialogDescription>
+              Select a worker to assign to "{selectedTicketForAssign?.title}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {workers.length > 0 ? (
+              <div className="grid gap-4">
+                {workers.map((worker) => (
+                  <Card key={worker.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                            <Users className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-medium">{worker.name}</h3>
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {worker.category} Specialist • Rating: {worker.rating}/5
+                            </p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {worker.specialties.map((specialty, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {specialty}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <Button 
+                          onClick={() => handleAssignWorker(selectedTicketForAssign?.id, worker.id)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          Assign
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No workers available for {selectedTicketForAssign?.category} category</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
