@@ -135,11 +135,8 @@ export const MaintenanceDetail: React.FC<MaintenanceDetailProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Ticket Details - #{issue.id?.slice(-1) || '1'}</span>
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-              <X className="w-4 h-4" />
-            </Button>
+          <DialogTitle>
+            Ticket Details - #{issue.id?.slice(-8) || '12345678'}
           </DialogTitle>
         </DialogHeader>
 
