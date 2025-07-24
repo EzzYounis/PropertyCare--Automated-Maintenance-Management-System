@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,70 @@ import {
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { EnhancedReportIssueDialog } from '@/components/tenant/EnhancedReportIssueDialog';
+import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 export const TenantDashboard = () => {
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [issues, setIssues] = useState<any[]>([]);
+  const [selectedIssue, setSelectedIssue] = useState<any>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user, profile } = useAuth();
+  const { toast } = useToast();
+
+  const fetchMaintenanceRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setIssues(data || []);
+    } catch (error) {
+      console.error('Error fetching maintenance requests:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMaintenanceRequests();
+  }, []);
+
+  const handleIssueSubmitted = () => {
+    fetchMaintenanceRequests();
+  };
+
+  const handleViewDetails = (issue: any) => {
+    setSelectedIssue(issue);
+    setIsDetailOpen(true);
+  };
+
+  const handleDetailUpdate = () => {
+    fetchMaintenanceRequests();
+    setIsDetailOpen(false);
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    const colors = {
+      urgent: 'destructive',
+      high: 'warning', 
+      medium: 'secondary',
+      low: 'outline'
+    };
+    return <Badge variant={colors[priority as keyof typeof colors] as any}>{priority}</Badge>;
+  };
+
+  const openIssues = issues.filter(issue => issue.status !== 'completed');
+  const urgentIssues = openIssues.filter(issue => issue.priority === 'urgent');
+  const mediumIssues = openIssues.filter(issue => issue.priority === 'medium');
 
   return (
     <div className="space-y-6">
@@ -56,8 +117,10 @@ export const TenantDashboard = () => {
             <Wrench className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">2</div>
-            <p className="text-xs text-muted-foreground">1 urgent, 1 medium</p>
+            <div className="text-2xl font-bold text-warning">{openIssues.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {urgentIssues.length} urgent, {mediumIssues.length} medium
+            </p>
           </CardContent>
         </Card>
 
@@ -180,39 +243,52 @@ export const TenantDashboard = () => {
           <CardDescription>Track the status of your reported issues</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-error/10 rounded-lg flex items-center justify-center">
-                  <Wrench className="w-5 h-5 text-error" />
-                </div>
-                <div>
-                  <p className="font-medium">Kitchen faucet leaking</p>
-                  <p className="text-sm text-muted-foreground">Reported 2 days ago</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="destructive">Urgent</Badge>
-                <Badge variant="outline">In Progress</Badge>
-              </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-tenant"></div>
             </div>
-
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-warning/10 rounded-lg flex items-center justify-center">
-                  <Wrench className="w-5 h-5 text-warning" />
+          ) : openIssues.length > 0 ? (
+            <div className="space-y-4">
+              {openIssues.slice(0, 3).map((issue) => (
+                <div key={issue.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                     onClick={() => handleViewDetails(issue)}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      issue.priority === 'urgent' ? 'bg-error/10' : 
+                      issue.priority === 'high' ? 'bg-warning/10' : 'bg-info/10'
+                    }`}>
+                      <Wrench className={`w-5 h-5 ${
+                        issue.priority === 'urgent' ? 'text-error' : 
+                        issue.priority === 'high' ? 'text-warning' : 'text-info'
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="font-medium">{issue.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Reported {new Date(issue.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getPriorityBadge(issue.priority)}
+                    <Badge variant="outline">
+                      {issue.status?.charAt(0).toUpperCase() + issue.status?.slice(1)}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">Bathroom light flickering</p>
-                  <p className="text-sm text-muted-foreground">Reported 1 week ago</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">Medium</Badge>
-                <Badge variant="outline">Scheduled</Badge>
-              </div>
+              ))}
+              {openIssues.length > 3 && (
+                <p className="text-sm text-muted-foreground text-center pt-2">
+                  And {openIssues.length - 3} more issues...
+                </p>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="text-center p-8">
+              <Wrench className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
+              <p className="text-muted-foreground">No open maintenance issues</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -220,6 +296,15 @@ export const TenantDashboard = () => {
       <EnhancedReportIssueDialog 
         open={isReportDialogOpen}
         onOpenChange={setIsReportDialogOpen}
+        onIssueSubmitted={handleIssueSubmitted}
+      />
+
+      {/* Maintenance Detail Modal */}
+      <MaintenanceDetail
+        issue={selectedIssue}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        onUpdate={handleDetailUpdate}
       />
     </div>
   );

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { EnhancedReportIssueDialog } from '@/components/tenant/EnhancedReportIssueDialog';
+import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -35,6 +36,8 @@ export const TenantMaintenance = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<any>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -87,6 +90,16 @@ export const TenantMaintenance = () => {
 
   const handleIssueSubmitted = (newIssue: any) => {
     fetchMaintenanceRequests(); // Refresh the list
+  };
+
+  const handleViewDetails = (issue: any) => {
+    setSelectedIssue(issue);
+    setIsDetailOpen(true);
+  };
+
+  const handleDetailUpdate = () => {
+    fetchMaintenanceRequests(); // Refresh the list
+    setIsDetailOpen(false);
   };
 
   const filteredIssues = issues.filter(issue => {
@@ -189,7 +202,11 @@ export const TenantMaintenance = () => {
                     <Badge variant={issue.status === 'completed' ? 'default' : 'secondary'} className="w-fit">
                       {issue.status.charAt(0).toUpperCase() + issue.status.slice(1)}
                     </Badge>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleViewDetails(issue)}
+                    >
                       View Details
                     </Button>
                   </div>
@@ -225,6 +242,14 @@ export const TenantMaintenance = () => {
         open={isReportDialogOpen}
         onOpenChange={setIsReportDialogOpen}
         onIssueSubmitted={handleIssueSubmitted}
+      />
+
+      {/* Maintenance Detail Modal */}
+      <MaintenanceDetail
+        issue={selectedIssue}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        onUpdate={handleDetailUpdate}
       />
     </div>
   );

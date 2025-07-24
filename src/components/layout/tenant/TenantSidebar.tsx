@@ -27,9 +27,6 @@ const menuItems = [
   { title: 'Maintenance', url: '/maintenance', icon: Wrench },
   { title: 'Payments', url: '/payments', icon: CreditCard },
   { title: 'Messages', url: '/messages', icon: MessageSquare },
-  { title: 'Documents', url: '/documents', icon: FileText },
-  { title: 'Schedule', url: '/schedule', icon: Calendar },
-  { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
 export const TenantSidebar = () => {
