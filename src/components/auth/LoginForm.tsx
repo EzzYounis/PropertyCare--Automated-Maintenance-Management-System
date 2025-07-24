@@ -22,9 +22,9 @@ export const LoginForm = () => {
     setLoading(true);
 
     try {
-      const success = login(username, password);
+      const result = await login(username, password);
       
-      if (success) {
+      if (result.success) {
         toast({
           title: "Welcome back!",
           description: "You have been successfully logged in.",
@@ -33,7 +33,7 @@ export const LoginForm = () => {
       } else {
         toast({
           title: "Login failed",
-          description: "Invalid username or password.",
+          description: result.error || "Invalid username or password.",
           variant: "destructive",
         });
       }

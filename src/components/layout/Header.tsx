@@ -24,9 +24,9 @@ const getRoleLabel = (role: string) => {
 };
 
 export const Header = () => {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
 
-  if (!user) return null;
+  if (!user || !profile) return null;
 
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -35,9 +35,9 @@ export const Header = () => {
           <SidebarTrigger />
           <div className="hidden sm:block">
             <h1 className="text-xl font-semibold text-foreground">
-              {user.role === 'tenant' && 'PropertyHub'}
-              {user.role === 'agent' && 'Maintenance Portal'}
-              {user.role === 'landlord' && 'PropertyCare'}
+              {profile.role === 'tenant' && 'PropertyHub'}
+              {profile.role === 'agent' && 'Maintenance Portal'}
+              {profile.role === 'landlord' && 'PropertyCare'}
             </h1>
           </div>
         </div>
@@ -53,10 +53,10 @@ export const Header = () => {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2">
               <User className="w-4 h-4" />
-              <span className="text-sm font-medium">{user.name}</span>
+              <span className="text-sm font-medium">{profile.name}</span>
             </div>
-            <Badge className={getRoleColor(user.role)}>
-              {getRoleLabel(user.role)}
+            <Badge className={getRoleColor(profile.role)}>
+              {getRoleLabel(profile.role)}
             </Badge>
           </div>
 
