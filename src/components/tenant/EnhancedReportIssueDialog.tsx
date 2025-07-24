@@ -23,17 +23,13 @@ import {
   DoorOpen,
   TreePine,
   Wrench,
-  ChevronRight,
-  ChevronLeft,
   Upload,
   Calendar as CalendarIcon,
   Clock,
   AlertTriangle,
   CheckCircle,
   Camera,
-  X,
-  Home,
-  ArrowRight
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -196,36 +192,32 @@ const categories: Category[] = [
 
 const priorityLevels = [
   {
-    id: 'emergency',
-    name: 'Emergency',
+    id: 'urgent',
+    name: 'Urgent',
     description: 'Safety hazard, flooding, electrical danger',
     color: 'text-red-600',
     bgColor: 'bg-red-50 border-red-200',
-    badge: 'destructive'
   },
   {
-    id: 'urgent',
-    name: 'Urgent',
+    id: 'high',
+    name: 'High',
     description: 'No heat/AC, major appliance failure',
     color: 'text-orange-600',
     bgColor: 'bg-orange-50 border-orange-200',
-    badge: 'warning'
   },
   {
-    id: 'standard',
-    name: 'Standard',
+    id: 'medium',
+    name: 'Medium',
     description: 'General repairs, minor issues',
     color: 'text-blue-600',
     bgColor: 'bg-blue-50 border-blue-200',
-    badge: 'default'
   },
   {
     id: 'low',
-    name: 'Low Priority',
+    name: 'Low',
     description: 'Cosmetic, convenience items',
     color: 'text-green-600',
     bgColor: 'bg-green-50 border-green-200',
-    badge: 'secondary'
   }
 ];
 
@@ -247,18 +239,18 @@ const timeSlots = [
 interface EnhancedReportIssueDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onIssueSubmitted?: (issue: any) => void;
 }
 
 export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps> = ({
   open,
-  onOpenChange
+  onOpenChange,
+  onIssueSubmitted
 }) => {
-  const [currentStep, setCurrentStep] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
   const [quickFixesCompleted, setQuickFixesCompleted] = useState<string[]>([]);
-  const [showQuickFixes, setShowQuickFixes] = useState(true);
-  const [selectedPriority, setSelectedPriority] = useState('standard');
+  const [selectedPriority, setSelectedPriority] = useState('medium');
   const [selectedRoom, setSelectedRoom] = useState('');
   const [preferredDate, setPreferredDate] = useState<Date>();
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
@@ -266,19 +258,15 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    location: '',
-    urgentDetails: ''
   });
 
   const { toast } = useToast();
 
   const resetForm = () => {
-    setCurrentStep(1);
     setSelectedCategory(null);
     setSelectedSubcategory('');
     setQuickFixesCompleted([]);
-    setShowQuickFixes(true);
-    setSelectedPriority('standard');
+    setSelectedPriority('medium');
     setSelectedRoom('');
     setPreferredDate(undefined);
     setSelectedTimeSlots([]);
@@ -286,28 +274,13 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
     setFormData({
       title: '',
       description: '',
-      location: '',
-      urgentDetails: ''
     });
-  };
-
-  const handleNext = () => {
-    if (currentStep < 3) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
   };
 
   const handleCategorySelect = (category: Category) => {
     setSelectedCategory(category);
     setSelectedSubcategory('');
     setQuickFixesCompleted([]);
-    setShowQuickFixes(true);
   };
 
   const handleSubcategorySelect = (subcategoryId: string) => {
@@ -341,11 +314,23 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
   };
 
   const handleSubmit = () => {
+    if (!selectedCategory || !formData.title || !formData.description) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const issueData = {
+      id: Date.now(),
+      title: formData.title,
       category: selectedCategory?.name,
       subcategory: selectedSubcategory,
       priority: selectedPriority,
-      title: formData.title,
+      status: 'Reported',
+      reportedDate: new Date().toISOString().split('T')[0],
       description: formData.description,
       room: selectedRoom,
       preferredDate,
@@ -354,60 +339,35 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
       quickFixesAttempted: quickFixesCompleted
     };
 
+    // Call the callback to add the issue to the list
+    if (onIssueSubmitted) {
+      onIssueSubmitted(issueData);
+    }
+
     toast({
       title: "Issue Reported Successfully!",
-      description: "Your maintenance request has been submitted and assigned a tracking number.",
+      description: "Your maintenance request has been submitted and will be reviewed shortly.",
     });
 
     resetForm();
     onOpenChange(false);
   };
 
-  const getProgressPercentage = () => {
-    return (currentStep / 3) * 100;
-  };
-
-  const canProceedFromStep1 = selectedCategory && selectedSubcategory;
-  const canProceedFromStep2 = formData.title && formData.description && selectedPriority;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wrench className="w-5 h-5 text-tenant" />
             Report Maintenance Issue
           </DialogTitle>
-          
-          {/* Progress Bar */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-              <span>Step {currentStep} of 3</span>
-              <span>{Math.round(getProgressPercentage())}% Complete</span>
-            </div>
-            <div className="w-full bg-muted rounded-full h-2">
-              <div 
-                className="bg-tenant h-2 rounded-full transition-all duration-300"
-                style={{ width: `${getProgressPercentage()}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span className={currentStep >= 1 ? 'text-tenant font-medium' : ''}>Category</span>
-              <span className={currentStep >= 2 ? 'text-tenant font-medium' : ''}>Details</span>
-              <span className={currentStep >= 3 ? 'text-tenant font-medium' : ''}>Schedule</span>
-            </div>
-          </div>
         </DialogHeader>
 
-        {/* Step 1: Category Selection */}
-        {currentStep === 1 && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">What type of issue are you experiencing?</h3>
-              <p className="text-muted-foreground mb-4">Select the category that best describes your maintenance issue</p>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="space-y-8 mt-6">
+          {/* Category Selection */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Issue Category *</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {categories.map((category) => {
                 const Icon = category.icon;
                 const isSelected = selectedCategory?.id === category.id;
@@ -438,8 +398,8 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
             {/* Subcategories */}
             {selectedCategory && (
               <div className="space-y-4 border-t pt-6">
-                <h4 className="font-medium">Select specific issue:</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <h4 className="font-medium">Specific Issue Type</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {selectedCategory.subcategories.map((subcategory) => (
                     <div
                       key={subcategory.id}
@@ -464,7 +424,7 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
             )}
 
             {/* Quick Fixes */}
-            {selectedCategory && selectedSubcategory && showQuickFixes && (
+            {selectedCategory && selectedSubcategory && (
               (() => {
                 const subcategory = selectedCategory.subcategories.find(sub => sub.id === selectedSubcategory);
                 if (!subcategory?.quickFixes) return null;
@@ -472,16 +432,16 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
                 return (
                   <div className="space-y-4 border-t pt-6">
                     <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-orange-500" />
+                      <CheckCircle className="w-5 h-5 text-blue-500" />
                       <h4 className="font-medium">Try These Quick Fixes First</h4>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      These simple steps might resolve your issue without needing a service call:
+                      Check off any steps you've already tried:
                     </p>
                     
                     <div className="space-y-3">
                       {subcategory.quickFixes.map((quickFix, index) => (
-                        <div key={index} className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg">
+                        <div key={index} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
                           <Checkbox
                             id={`quickfix-${index}`}
                             checked={quickFixesCompleted.includes(quickFix)}
@@ -496,83 +456,66 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
                         </div>
                       ))}
                     </div>
-                    
-                    <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowQuickFixes(false)}
-                        className="text-orange-600 border-orange-200 hover:bg-orange-50"
-                      >
-                        Still Need Help
-                      </Button>
-                      {quickFixesCompleted.length === subcategory.quickFixes.length && (
-                        <Button variant="default" onClick={() => onOpenChange(false)} className="bg-green-600 hover:bg-green-700 text-white">
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Issue Resolved
-                        </Button>
-                      )}
-                    </div>
                   </div>
                 );
               })()
             )}
           </div>
-        )}
 
-        {/* Step 2: Issue Details */}
-        {currentStep === 2 && (
+          {/* Issue Details */}
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Issue Details</h3>
-              <p className="text-muted-foreground">Provide specific information about your maintenance issue</p>
-            </div>
+            <h3 className="text-lg font-semibold">Issue Details</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="issue-title">Issue Title *</Label>
+                  <Input
+                    id="issue-title"
+                    placeholder="Brief description of the issue"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="room-location">Room/Location</Label>
+                  <select
+                    id="room-location"
+                    className="w-full p-2 border border-input rounded-md bg-background"
+                    value={selectedRoom}
+                    onChange={(e) => setSelectedRoom(e.target.value)}
+                  >
+                    <option value="">Select room</option>
+                    {rooms.map((room) => (
+                      <option key={room} value={room}>{room}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="issue-title">Issue Title *</Label>
-                <Input
-                  id="issue-title"
-                  placeholder="Brief description of the issue"
-                  value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                <Label htmlFor="description">Detailed Description *</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe the issue in detail..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  rows={4}
+                  className="resize-none"
+                  required
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="room-location">Room/Location</Label>
-                <select
-                  id="room-location"
-                  className="w-full p-2 border border-input rounded-md bg-background"
-                  value={selectedRoom}
-                  onChange={(e) => setSelectedRoom(e.target.value)}
-                >
-                  <option value="">Select room</option>
-                  {rooms.map((room) => (
-                    <option key={room} value={room}>{room}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Detailed Description *</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe the issue in detail, including when it started, how often it occurs, and any other relevant information..."
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                rows={4}
-                className="resize-none"
-              />
-              <div className="text-xs text-muted-foreground text-right">
-                {formData.description.length}/500 characters
+                <div className="text-xs text-muted-foreground text-right">
+                  {formData.description.length}/500 characters
+                </div>
               </div>
             </div>
 
             {/* Priority Selection */}
             <div className="space-y-4">
               <Label>Priority Level *</Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                 {priorityLevels.map((priority) => (
                   <div
                     key={priority.id}
@@ -596,34 +539,12 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
                 ))}
               </div>
             </div>
-
-            {selectedPriority === 'emergency' && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-red-800 mb-2">Emergency Issue Details</h4>
-                    <Textarea
-                      placeholder="Please provide immediate safety concerns and any actions you've taken..."
-                      value={formData.urgentDetails}
-                      onChange={(e) => setFormData({...formData, urgentDetails: e.target.value})}
-                      rows={3}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
-        )}
 
-        {/* Step 3: Scheduling & Media */}
-        {currentStep === 3 && (
+          {/* Scheduling & Photos */}
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Schedule & Additional Information</h3>
-              <p className="text-muted-foreground">When would you prefer the repair to be completed?</p>
-            </div>
-
+            <h3 className="text-lg font-semibold">Scheduling & Photos (Optional)</h3>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Date Selection */}
               <div className="space-y-4">
@@ -648,7 +569,6 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
                       onSelect={setPreferredDate}
                       disabled={(date) => date < new Date()}
                       initialFocus
-                      className="pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>
@@ -729,43 +649,20 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
               )}
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between pt-6 border-t">
-          <div>
-            {currentStep > 1 && (
-              <Button variant="outline" onClick={handleBack}>
-                <ChevronLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-            )}
-          </div>
-          
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            
-            {currentStep < 3 ? (
-              <Button 
-                onClick={handleNext}
-                disabled={
-                  (currentStep === 1 && !canProceedFromStep1) ||
-                  (currentStep === 2 && !canProceedFromStep2)
-                }
-                variant="tenant"
-              >
-                Next
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            ) : (
-              <Button onClick={handleSubmit} variant="tenant">
-                Submit Request
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            )}
-          </div>
+        {/* Submit Buttons */}
+        <div className="flex justify-end space-x-4 pt-6 border-t">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSubmit}
+            disabled={!selectedCategory || !formData.title || !formData.description}
+            variant="tenant"
+          >
+            Submit Request
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

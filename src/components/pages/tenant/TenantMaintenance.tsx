@@ -28,7 +28,7 @@ const categories = [
   'Plumbing', 'Electrical', 'HVAC', 'Kitchen', 'Bathroom', 'Flooring', 'Windows/Doors', 'General'
 ];
 
-const mockIssues = [
+const initialIssues = [
   {
     id: 1,
     title: 'Kitchen faucet leaking',
@@ -65,6 +65,7 @@ const mockIssues = [
 ];
 
 export const TenantMaintenance = () => {
+  const [issues, setIssues] = useState(initialIssues);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
@@ -88,7 +89,11 @@ export const TenantMaintenance = () => {
     }
   };
 
-  const filteredIssues = mockIssues.filter(issue => {
+  const handleIssueSubmitted = (newIssue: any) => {
+    setIssues(prevIssues => [newIssue, ...prevIssues]);
+  };
+
+  const filteredIssues = issues.filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          issue.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'all' || issue.status.toLowerCase() === filterStatus.toLowerCase();
@@ -216,6 +221,7 @@ export const TenantMaintenance = () => {
       <EnhancedReportIssueDialog 
         open={isReportDialogOpen}
         onOpenChange={setIsReportDialogOpen}
+        onIssueSubmitted={handleIssueSubmitted}
       />
     </div>
   );
