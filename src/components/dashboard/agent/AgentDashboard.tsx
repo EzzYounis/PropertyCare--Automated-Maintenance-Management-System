@@ -404,7 +404,7 @@ export const AgentDashboard = () => {
               <p className="text-sm">{ticket.tenant_profile?.username || 'N/A'}</p>
             </TableCell>
             <TableCell>
-              <p className="text-sm">{ticket.room || 'Property Address Not Available'}</p>
+              <p className="text-sm">{ticket.property_address || 'Property Address Not Available'}</p>
             </TableCell>
             <TableCell>
               <Badge variant={ticket.priority === 'urgent' ? 'destructive' : 

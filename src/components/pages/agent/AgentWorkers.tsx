@@ -24,7 +24,11 @@ import {
   Wifi,
   MoreHorizontal,
   Eye,
-  Edit
+  Edit,
+  Paintbrush,
+  Layers,
+  TreePine,
+  DoorOpen
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AgentWorkerDetail } from './AgentWorkerDetail';
@@ -39,10 +43,10 @@ const categories = workerCategories.map(category => ({
         category.id === 'appliances' ? Wrench :
         category.id === 'pest-control' ? Shield :
         category.id === 'security' ? Shield :
-        category.id === 'painting' ? Wrench :
-        category.id === 'flooring' ? Home :
-        category.id === 'windows-doors' ? Home :
-        category.id === 'landscaping' ? Home :
+        category.id === 'painting' ? Paintbrush :
+        category.id === 'flooring' ? Layers :
+        category.id === 'windows-doors' ? DoorOpen :
+        category.id === 'landscaping' ? TreePine :
         Wrench,
   color: category.id === 'plumbing' ? 'text-blue-500' :
          category.id === 'electrical' ? 'text-yellow-500' :
