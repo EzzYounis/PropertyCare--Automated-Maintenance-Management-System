@@ -139,6 +139,7 @@ export const AgentDashboard = () => {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedTicketForAssign, setSelectedTicketForAssign] = useState(null);
   const [workers, setWorkers] = useState([]);
+  const [activeTab, setActiveTab] = useState("unassigned");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -587,7 +588,7 @@ export const AgentDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="unassigned" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="unassigned">Unassigned Issues</TabsTrigger>
           <TabsTrigger value="my-issues">My Issues</TabsTrigger>
