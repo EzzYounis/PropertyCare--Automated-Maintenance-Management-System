@@ -264,7 +264,7 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const resetForm = () => {
     setSelectedCategory(null);
@@ -318,7 +318,7 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
   };
 
   const handleSubmit = async () => {
-    if (!selectedCategory || !formData.title || !formData.description || !user) {
+    if (!selectedCategory || !formData.title || !formData.description || !user || !profile) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",

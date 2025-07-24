@@ -11,12 +11,20 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { profile, loading } = useAuth();
 
-  if (!user) return null;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!profile) return null;
 
   const renderSidebar = () => {
-    switch (user.role) {
+    switch (profile.role) {
       case 'tenant':
         return <TenantSidebar />;
       case 'agent':

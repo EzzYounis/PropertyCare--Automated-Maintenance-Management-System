@@ -5,12 +5,20 @@ import { AgentDashboard } from '@/components/dashboard/agent/AgentDashboard';
 import { LandlordDashboard } from '@/components/dashboard/landlord/LandlordDashboard';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { profile, loading } = useAuth();
 
-  if (!user) return null;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!profile) return null;
 
   const renderDashboard = () => {
-    switch (user.role) {
+    switch (profile.role) {
       case 'tenant':
         return <TenantDashboard />;
       case 'agent':
