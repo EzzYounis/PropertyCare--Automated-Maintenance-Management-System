@@ -457,6 +457,7 @@ export const AgentDashboard = () => {
                   <>
                     {(ticket.status === 'submitted' || ticket.status === 'open') && !ticket.agent_notes && (
                       <Button 
+                        type="button"
                         size="sm"
                         onClick={() => handleClaimTicket(ticket.id)}
                         className="bg-agent hover:bg-agent-secondary text-white"
@@ -467,6 +468,7 @@ export const AgentDashboard = () => {
                     {ticket.status === 'claimed' && ticket.agent_notes === 'current_agent' && !ticket.assigned_worker_id && (
                       <div className="flex flex-col gap-1">
                         <Button 
+                          type="button"
                           size="sm"
                           onClick={() => handleQuickAssign(ticket.id)}
                           className="bg-green-600 hover:bg-green-700 text-white"
@@ -474,6 +476,7 @@ export const AgentDashboard = () => {
                           Quick Assign
                         </Button>
                         <Button 
+                          type="button"
                           size="sm"
                           onClick={() => openAssignModal(ticket)}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -720,6 +723,7 @@ export const AgentDashboard = () => {
                           </div>
                         </div>
                         <Button 
+                          type="button"
                           onClick={() => handleAssignWorker(selectedTicketForAssign?.id, worker.id)}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
