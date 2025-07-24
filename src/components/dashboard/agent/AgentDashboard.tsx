@@ -98,19 +98,15 @@ export const AgentDashboard = () => {
   const fetchMaintenanceRequests = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // First get maintenance requests
+      const { data: requests, error: requestsError } = await supabase
         .from('maintenance_requests')
-        .select(`
-          *,
-          profiles:tenant_id (
-            name,
-            username
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching maintenance requests:', error);
+      if (requestsError) {
+        console.error('Error fetching maintenance requests:', requestsError);
         toast({
           title: "Error",
           description: "Failed to load maintenance requests",
@@ -119,7 +115,28 @@ export const AgentDashboard = () => {
         return;
       }
 
-      setTickets(data || []);
+      // Then get profiles for each request
+      if (requests && requests.length > 0) {
+        const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name, username')
+          .in('id', tenantIds);
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+
+        // Combine the data
+        const requestsWithProfiles = requests.map(request => ({
+          ...request,
+          tenant_profile: profiles?.find(p => p.id === request.tenant_id) || null
+        }));
+
+        setTickets(requestsWithProfiles);
+      } else {
+        setTickets([]);
+      }
     } catch (error) {
       console.error('Error:', error);
       toast({
@@ -169,7 +186,7 @@ export const AgentDashboard = () => {
     return ticketList.filter(ticket => {
       const matchesSearch = ticket.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            ticket.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           ticket.profiles?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+                           ticket.tenant_profile?.name?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesCategory = categoryFilter === 'all' || ticket.category === categoryFilter;
       const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter;
@@ -210,7 +227,7 @@ export const AgentDashboard = () => {
             </TableCell>
             <TableCell>
               <div>
-                <p className="text-sm font-medium">{ticket.profiles?.name || 'Unknown'}</p>
+                <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground">{ticket.room || 'N/A'}</p>
               </div>
             </TableCell>
@@ -454,11 +471,10 @@ export const AgentDashboard = () => {
       {/* Ticket Details Modal */}
       {selectedTicket && (
         <MaintenanceDetail
-          maintenanceRequest={selectedTicket}
-          isOpen={!!selectedTicket}
-          onClose={() => setSelectedTicket(null)}
+          issue={selectedTicket}
+          open={!!selectedTicket}
+          onOpenChange={(open) => !open && setSelectedTicket(null)}
           onUpdate={fetchMaintenanceRequests}
-          userRole="agent"
         />
       )}
     </div>
