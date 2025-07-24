@@ -164,12 +164,12 @@ export const AgentDashboard = () => {
 
   const handleClaimTicket = async (ticketId: string) => {
     try {
-      // Update the ticket to assign it to current agent
+      // Update the ticket to claim it by current agent
       const { error } = await supabase
         .from('maintenance_requests')
         .update({ 
-          assigned_worker_id: 'current_agent', // You should replace this with actual agent ID
-          status: 'assigned'
+          agent_notes: 'current_agent', // Store agent ID who claimed it
+          status: 'claimed'
         })
         .eq('id', ticketId);
 
@@ -221,7 +221,7 @@ export const AgentDashboard = () => {
         .from('maintenance_requests')
         .update({ 
           assigned_worker_id: favoriteWorker.id,
-          status: 'assigned'
+          status: 'in_process'
         })
         .eq('id', ticketId);
 
@@ -259,7 +259,7 @@ export const AgentDashboard = () => {
         .from('maintenance_requests')
         .update({ 
           assigned_worker_id: workerId,
-          status: 'assigned'
+          status: 'in_process'
         })
         .eq('id', ticketId);
 
@@ -305,11 +305,11 @@ export const AgentDashboard = () => {
 
   // Helper functions to filter tickets
   const getUnassignedTickets = () => tickets.filter(ticket => 
-    ticket.status === 'submitted' && (!ticket.assigned_worker_id || ticket.assigned_worker_id === null)
+    ticket.status === 'submitted' || ticket.status === 'open'
   );
 
   const getMyTickets = () => tickets.filter(ticket => 
-    ticket.assigned_worker_id === 'current_agent' || ticket.status === 'assigned'
+    ticket.agent_notes === 'current_agent' || ticket.status === 'claimed' || ticket.status === 'in_process'
   );
 
   const getAllTickets = () => tickets;
@@ -329,16 +329,18 @@ export const AgentDashboard = () => {
     });
   };
 
-  const renderTicketTable = (ticketList) => (
+  const renderTicketTable = (ticketList, isAllAgencyTab = false) => (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Issue</TableHead>
-          <TableHead>Tenant</TableHead>
+          <TableHead>Category</TableHead>
+          <TableHead>Tenant Name</TableHead>
+          <TableHead>Tenant Number</TableHead>
+          <TableHead>Property Address</TableHead>
           <TableHead>Priority</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Assigned Worker</TableHead>
-          <TableHead>Created</TableHead>
+          {isAllAgencyTab && <TableHead>Claimed By</TableHead>}
           <TableHead>Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -359,10 +361,13 @@ export const AgentDashboard = () => {
               </div>
             </TableCell>
             <TableCell>
-              <div>
-                <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
-                <p className="text-xs text-muted-foreground">{ticket.room || 'N/A'}</p>
-              </div>
+              <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
+            </TableCell>
+            <TableCell>
+              <p className="text-sm">{ticket.tenant_profile?.username || 'N/A'}</p>
+            </TableCell>
+            <TableCell>
+              <p className="text-sm">{ticket.room || 'Property Address Not Available'}</p>
             </TableCell>
             <TableCell>
               <Badge variant={ticket.priority === 'urgent' ? 'destructive' : 
@@ -374,25 +379,33 @@ export const AgentDashboard = () => {
             <TableCell>
               <div className="flex items-center space-x-1">
                 {ticket.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
-                {ticket.status === 'in_progress' && <Clock className="h-4 w-4 text-blue-500" />}
-                {ticket.status === 'assigned' && <User className="h-4 w-4 text-yellow-500" />}
-                {ticket.status === 'submitted' && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                {ticket.status === 'in_process' && <Clock className="h-4 w-4 text-blue-500" />}
+                {ticket.status === 'claimed' && <User className="h-4 w-4 text-yellow-500" />}
+                {(ticket.status === 'submitted' || ticket.status === 'open') && <AlertTriangle className="h-4 w-4 text-red-500" />}
                 <span className={`text-sm capitalize ${
                   ticket.status === 'completed' ? 'text-green-700' :
-                  ticket.status === 'in_progress' ? 'text-blue-700' :
-                  ticket.status === 'assigned' ? 'text-yellow-700' :
+                  ticket.status === 'in_process' ? 'text-blue-700' :
+                  ticket.status === 'claimed' ? 'text-yellow-700' :
                   'text-red-700'
                 }`}>
-                  {ticket.status.replace('_', ' ')}
+                  {ticket.status === 'in_process' ? 'In Process' : 
+                   ticket.status === 'submitted' ? 'Open' : 
+                   ticket.status}
                 </span>
               </div>
             </TableCell>
             <TableCell>
-              <p className="text-sm">{ticket.assigned_worker_id || 'Unassigned'}</p>
+              <p className="text-sm">
+                {ticket.assigned_worker_id ? 
+                  (getWorkerById(ticket.assigned_worker_id)?.name || ticket.assigned_worker_id) : 
+                  'Unassigned'}
+              </p>
             </TableCell>
-            <TableCell>
-              <p className="text-sm">{new Date(ticket.created_at).toLocaleDateString()}</p>
-            </TableCell>
+            {isAllAgencyTab && (
+              <TableCell>
+                <p className="text-sm">{ticket.agent_notes === 'current_agent' ? 'You' : ticket.agent_notes || 'Not claimed'}</p>
+              </TableCell>
+            )}
             <TableCell>
               <div className="flex space-x-1">
                 <Button 
@@ -401,34 +414,38 @@ export const AgentDashboard = () => {
                   onClick={() => setSelectedTicket(ticket)}
                 >
                   <Eye className="w-4 h-4 mr-1" />
-                  View
+                  View Details
                 </Button>
-                {(ticket.status === 'submitted' && (!ticket.assigned_worker_id || ticket.assigned_worker_id === null)) && (
-                  <Button 
-                    size="sm"
-                    onClick={() => handleClaimTicket(ticket.id)}
-                    className="bg-agent hover:bg-agent-secondary text-white"
-                  >
-                    Claim
-                  </Button>
-                )}
-                {ticket.assigned_worker_id && ticket.status === 'assigned' && (
-                  <div className="flex flex-col gap-1">
-                    <Button 
-                      size="sm"
-                      onClick={() => handleQuickAssign(ticket.id)}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      Quick Assign
-                    </Button>
-                    <Button 
-                      size="sm"
-                      onClick={() => openAssignModal(ticket)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Assign
-                    </Button>
-                  </div>
+                {!isAllAgencyTab && (
+                  <>
+                    {(ticket.status === 'submitted' || ticket.status === 'open') && !ticket.agent_notes && (
+                      <Button 
+                        size="sm"
+                        onClick={() => handleClaimTicket(ticket.id)}
+                        className="bg-agent hover:bg-agent-secondary text-white"
+                      >
+                        Claim
+                      </Button>
+                    )}
+                    {ticket.status === 'claimed' && ticket.agent_notes === 'current_agent' && !ticket.assigned_worker_id && (
+                      <div className="flex flex-col gap-1">
+                        <Button 
+                          size="sm"
+                          onClick={() => handleQuickAssign(ticket.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Quick Assign
+                        </Button>
+                        <Button 
+                          size="sm"
+                          onClick={() => openAssignModal(ticket)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          Assign
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </TableCell>
@@ -584,9 +601,9 @@ export const AgentDashboard = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="submitted">Submitted</SelectItem>
-                    <SelectItem value="assigned">Assigned</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="claimed">Claimed</SelectItem>
+                    <SelectItem value="in_process">In Process</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
@@ -614,7 +631,7 @@ export const AgentDashboard = () => {
         <TabsContent value="all-agency" className="space-y-4">
           <Card>
             <CardContent className="p-0">
-              {renderTicketTable(getAllTickets())}
+              {renderTicketTable(getAllTickets(), true)}
             </CardContent>
           </Card>
         </TabsContent>
