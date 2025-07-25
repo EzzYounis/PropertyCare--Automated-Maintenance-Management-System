@@ -85,7 +85,48 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
+      },
+      workers: {
+        Row: {
+          id: string;
+          initials: string;
+          name: string;
+          specialty: string | null;
+          rating: number | null;
+          phone: string | null;
+          description: string | null;
+          favorite: boolean;
+          category: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          initials: string;
+          name: string;
+          specialty?: string | null;
+          rating?: number | null;
+          phone?: string | null;
+          description?: string | null;
+          favorite?: boolean;
+          category?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          initials?: string;
+          name?: string;
+          specialty?: string | null;
+          rating?: number | null;
+          phone?: string | null;
+          description?: string | null;
+          favorite?: boolean;
+          category?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      },
       profiles: {
         Row: {
           created_at: string

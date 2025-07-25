@@ -32,45 +32,28 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AgentWorkerDetail } from './AgentWorkerDetail';
-import { workerCategories } from '@/data/workers';
+import {
+  getAllWorkers,
+  addWorker,
+  updateWorker,
+  deleteWorker
+} from '@/data/workers';
 
-// Add icons to categories matching tenant reporting categories
-const categories = workerCategories.map(category => ({
-  ...category,
-  icon: category.id === 'plumbing' ? Droplets :
-        category.id === 'electrical' ? Zap :
-        category.id === 'hvac' ? Thermometer :
-        category.id === 'appliances' ? Wrench :
-        category.id === 'pest-control' ? Shield :
-        category.id === 'security' ? Shield :
-        category.id === 'painting' ? Paintbrush :
-        category.id === 'flooring' ? Layers :
-        category.id === 'windows-doors' ? DoorOpen :
-        category.id === 'landscaping' ? TreePine :
-        Wrench,
-  color: category.id === 'plumbing' ? 'text-blue-500' :
-         category.id === 'electrical' ? 'text-yellow-500' :
-         category.id === 'hvac' ? 'text-green-500' :
-         category.id === 'appliances' ? 'text-purple-500' :
-         category.id === 'pest-control' ? 'text-red-500' :
-         category.id === 'security' ? 'text-indigo-500' :
-         category.id === 'painting' ? 'text-orange-500' :
-         category.id === 'flooring' ? 'text-amber-500' :
-         category.id === 'windows-doors' ? 'text-cyan-500' :
-         category.id === 'landscaping' ? 'text-emerald-500' :
-         'text-gray-500',
-  bg: category.id === 'plumbing' ? 'bg-blue-100' :
-      category.id === 'electrical' ? 'bg-yellow-100' :
-      category.id === 'hvac' ? 'bg-green-100' :
-      category.id === 'appliances' ? 'bg-purple-100' :
-      category.id === 'pest-control' ? 'bg-red-100' :
-      category.id === 'security' ? 'bg-indigo-100' :
-      category.id === 'painting' ? 'bg-orange-100' :
-      category.id === 'flooring' ? 'bg-amber-100' :
-      category.id === 'windows-doors' ? 'bg-cyan-100' :
-      category.id === 'landscaping' ? 'bg-emerald-100' :
-      'bg-gray-100'
-}));
+
+// Static category list for UI grouping/icons
+const categories = [
+  { id: 'plumbing', name: 'Plumbing', icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-100' },
+  { id: 'electrical', name: 'Electrical', icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-100' },
+  { id: 'hvac', name: 'HVAC', icon: Thermometer, color: 'text-green-500', bg: 'bg-green-100' },
+  { id: 'appliances', name: 'Appliances', icon: Wrench, color: 'text-purple-500', bg: 'bg-purple-100' },
+  { id: 'pest-control', name: 'Pest Control', icon: Shield, color: 'text-red-500', bg: 'bg-red-100' },
+  { id: 'security', name: 'Locks/Security', icon: Shield, color: 'text-indigo-500', bg: 'bg-indigo-100' },
+  { id: 'painting', name: 'Painting/Walls', icon: Paintbrush, color: 'text-orange-500', bg: 'bg-orange-100' },
+  { id: 'flooring', name: 'Flooring', icon: Layers, color: 'text-amber-500', bg: 'bg-amber-100' },
+  { id: 'windows-doors', name: 'Windows/Doors', icon: DoorOpen, color: 'text-cyan-500', bg: 'bg-cyan-100' },
+  { id: 'landscaping', name: 'Landscaping', icon: TreePine, color: 'text-emerald-500', bg: 'bg-emerald-100' },
+  { id: 'other', name: 'Other', icon: Wrench, color: 'text-gray-500', bg: 'bg-gray-100' },
+];
 
 export const AgentWorkers = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -85,10 +68,28 @@ export const AgentWorkers = () => {
     description: '',
     category: ''
   });
-  const [workerData, setWorkerData] = useState(categories);
+  // Group workers by category for UI
+  const [workerData, setWorkerData] = useState<any[]>([]);
+  // Fetch workers from Supabase and group by category
+  React.useEffect(() => {
+    const fetchWorkers = async () => {
+      try {
+        const allWorkers = await getAllWorkers();
+        // Group by category
+        const grouped = categories.map(category => ({
+          ...category,
+          workers: allWorkers.filter(w => w.category === category.id)
+        }));
+        setWorkerData(grouped);
+      } catch (e) {
+        toast({ title: 'Error', description: 'Failed to load workers', variant: 'destructive' });
+      }
+    };
+    fetchWorkers();
+  }, []);
   const { toast } = useToast();
 
-  const handleAddWorker = () => {
+  const handleAddWorker = async () => {
     if (!newWorkerData.name || !newWorkerData.phone || !newWorkerData.specialty || !newWorkerData.category) {
       toast({
         title: "Missing Information",
@@ -97,45 +98,40 @@ export const AgentWorkers = () => {
       });
       return;
     }
-
-    const newWorker = {
-      id: Math.random().toString(36).substr(2, 9),
-      initials: newWorkerData.name.split(' ').map(n => n[0]).join('').toUpperCase(),
-      name: newWorkerData.name,
-      specialty: newWorkerData.specialty,
-      rating: 4.0,
-      phone: newWorkerData.phone,
-      description: newWorkerData.description,
-      favorite: false,
-      category: newWorkerData.category
-    };
-
-    const updatedData = workerData.map(category => {
-      if (category.id === newWorkerData.category) {
-        return {
-          ...category,
-          workers: [...category.workers, newWorker]
-        };
-      }
-      return category;
-    });
-
-    setWorkerData(updatedData);
-    
-    toast({
-      title: "Worker Added",
-      description: "New worker has been successfully added to your team.",
-    });
-    
-    setIsModalOpen(false);
-    setNewWorkerData({
-      name: '',
-      phone: '',
-      specialty: '',
-      description: '',
-      category: ''
-    });
-    setSelectedCategories([]);
+    try {
+      await addWorker({
+        initials: newWorkerData.name.split(' ').map(n => n[0]).join('').toUpperCase(),
+        name: newWorkerData.name,
+        specialty: newWorkerData.specialty,
+        rating: 4.0,
+        phone: newWorkerData.phone,
+        description: newWorkerData.description,
+        favorite: false,
+        category: newWorkerData.category
+      });
+      toast({
+        title: "Worker Added",
+        description: "New worker has been successfully added to your team.",
+      });
+      setIsModalOpen(false);
+      setNewWorkerData({
+        name: '',
+        phone: '',
+        specialty: '',
+        description: '',
+        category: ''
+      });
+      setSelectedCategories([]);
+      // Refresh workers
+      const allWorkers = await getAllWorkers();
+      const grouped = categories.map(category => ({
+        ...category,
+        workers: allWorkers.filter(w => w.category === category.id)
+      }));
+      setWorkerData(grouped);
+    } catch (e) {
+      toast({ title: 'Error', description: 'Failed to add worker', variant: 'destructive' });
+    }
   };
 
   const handleCategoryToggle = (categoryId: string) => {
@@ -146,37 +142,38 @@ export const AgentWorkers = () => {
     );
   };
 
-  const toggleFavorite = (categoryId: string, workerId: string) => {
-    const updatedData = workerData.map(category => {
-      if (category.id === categoryId) {
-        return {
-          ...category,
-          workers: category.workers.map(worker => 
-            worker.id === workerId 
-              ? { ...worker, favorite: !worker.favorite }
-              : worker
-          )
-        };
-      }
-      return category;
-    });
-    
-    setWorkerData(updatedData);
-    toast({
-      title: "Favorite Updated",
-      description: "Worker favorite status has been updated.",
-    });
+  const toggleFavorite = async (categoryId: string, workerId: string, currentFavorite: boolean) => {
+    try {
+      await updateWorker(workerId, { favorite: !currentFavorite });
+      toast({
+        title: "Favorite Updated",
+        description: "Worker favorite status has been updated.",
+      });
+      // Refresh workers
+      const allWorkers = await getAllWorkers();
+      const grouped = categories.map(category => ({
+        ...category,
+        workers: allWorkers.filter(w => w.category === category.id)
+      }));
+      setWorkerData(grouped);
+    } catch (e) {
+      toast({ title: 'Error', description: 'Failed to update favorite', variant: 'destructive' });
+    }
   };
 
-  const handleWorkerUpdate = (updatedWorker: any) => {
-    const updatedData = workerData.map(category => ({
-      ...category,
-      workers: category.workers.map(worker => 
-        worker.id === updatedWorker.id ? updatedWorker : worker
-      )
-    }));
-    
-    setWorkerData(updatedData);
+  const handleWorkerUpdate = async (updatedWorker: any) => {
+    try {
+      await updateWorker(updatedWorker.id, updatedWorker);
+      // Refresh workers
+      const allWorkers = await getAllWorkers();
+      const grouped = categories.map(category => ({
+        ...category,
+        workers: allWorkers.filter(w => w.category === category.id)
+      }));
+      setWorkerData(grouped);
+    } catch (e) {
+      toast({ title: 'Error', description: 'Failed to update worker', variant: 'destructive' });
+    }
   };
 
   const handleViewWorker = (worker: any) => {
@@ -262,7 +259,7 @@ export const AgentWorkers = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => toggleFavorite(category.id, worker.id)}
+                            onClick={() => toggleFavorite(category.id, worker.id, worker.favorite)}
                           >
                             <Heart className={`w-4 h-4 ${worker.favorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                           </Button>

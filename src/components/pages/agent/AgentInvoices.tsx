@@ -22,17 +22,22 @@ import {
   Building
 } from 'lucide-react';
 
-const invoiceData = [
+import { useEffect } from 'react';
+import { getAllWorkers, getFavoriteWorkers } from '@/data/workers';
+import { Tables } from '@/integrations/supabase/types';
+
+// Example: Replace this with your real invoice data from Supabase or API
+const staticInvoiceData = [
   {
     id: 'INV-001',
     jobTitle: 'Kitchen Oven Not Heating',
     description: 'Repair and replace faulty heating element in kitchen oven',
     priority: 'Medium',
     status: 'Paid',
-    worker: 'Mike Johnson',
-    workerSpecialty: 'Expert Boiler Repairs',
-    workerPhone: '+44 7700 123456',
-    workerEmail: 'mike.johnson@maintenance.com',
+    workerId: '00000000-0000-0000-0000-000000000001', // Placeholder UUID
+    workerName: 'Alex Turner',
+    workerSpecialty: 'Appliance Repair',
+    workerPhone: '+44 7700 111222',
     property: '78 Bethnal Green Road, London E2 6DG',
     tenant: 'Nicole Anderson',
     tenantPhone: '+44 7700 654321',
@@ -54,10 +59,10 @@ const invoiceData = [
     description: 'Fix leaking pipe under bathroom sink and replace damaged flooring',
     priority: 'High',
     status: 'Pending',
-    worker: 'Sarah Davis',
-    workerSpecialty: 'Senior Plumber',
-    workerPhone: '+44 7700 789012',
-    workerEmail: 'sarah.davis@maintenance.com',
+    workerId: '', // Will be set dynamically
+    workerName: 'Sarah Lee',
+    workerSpecialty: 'Plumbing',
+    workerPhone: '+44 7700 333444',
     property: '45 Baker Street, London NW1 6XE',
     tenant: 'John Smith',
     tenantPhone: '+44 7700 345678',
@@ -74,6 +79,8 @@ const invoiceData = [
     dueDate: 'Aug 3, 2025'
   }
 ];
+
+
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -106,18 +113,19 @@ export const AgentInvoices = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
+  // Use staticInvoiceData as the invoice data source
+  const invoiceData = staticInvoiceData;
+
   const filteredInvoices = invoiceData.filter(invoice => {
     const matchesSearch = 
       invoice.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.worker.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (invoice.workerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       invoice.property.toLowerCase().includes(searchTerm.toLowerCase()) ||
       invoice.tenant.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesTab = 
       activeTab === 'all' ||
       (activeTab === 'paid' && invoice.status === 'Paid') ||
       (activeTab === 'pending' && invoice.status === 'Pending');
-    
     return matchesSearch && matchesTab;
   });
 
@@ -246,7 +254,7 @@ export const AgentInvoices = () => {
                               <div className="flex items-center gap-2">
                                 <User className="w-4 h-4 text-muted-foreground" />
                                 <div>
-                                  <p className="text-sm font-medium">{invoice.worker}</p>
+                                  <p className="text-sm font-medium">{invoice.workerName}</p>
                                   <p className="text-xs text-muted-foreground">{invoice.workerSpecialty}</p>
                                 </div>
                               </div>
@@ -364,17 +372,13 @@ export const AgentInvoices = () => {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <p className="font-semibold">{selectedInvoice.worker}</p>
+                      <p className="font-semibold">{selectedInvoice.workerName}</p>
                       <p className="text-sm text-muted-foreground">{selectedInvoice.workerSpecialty}</p>
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2">
                         <Phone className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm">{selectedInvoice.workerPhone}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Mail className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm">{selectedInvoice.workerEmail}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -486,4 +490,4 @@ export const AgentInvoices = () => {
       )}
     </div>
   );
-};
+}

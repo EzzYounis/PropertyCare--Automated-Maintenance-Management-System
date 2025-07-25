@@ -62,12 +62,13 @@ import {
   Paintbrush,
   Grid3X3,
   DoorOpen,
-  TreePine
+  TreePine,
+  Trash2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
-import { getAllWorkers, getFavoriteWorkers, getWorkersByCategory, getWorkerById } from '@/data/workers';
+import { getAllWorkers, getFavoriteWorkers, getWorkersByCategory, getWorkerById, deleteWorker } from '@/data/workers';
 
 // Issue categories mapping to match database
 const issueCategories = {
@@ -144,6 +145,7 @@ export const AgentDashboard = () => {
 
   useEffect(() => {
     fetchMaintenanceRequests();
+    fetchWorkers(); // Add this line
   }, []);
 
   const fetchMaintenanceRequests = async () => {
@@ -200,6 +202,20 @@ export const AgentDashboard = () => {
     }
   };
 
+  const fetchWorkers = async () => {
+    try {
+      const allWorkers = await getAllWorkers();
+      setWorkers(allWorkers);
+    } catch (error) {
+      console.error('Error fetching workers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load workers",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleClaimTicket = async (ticketId: string) => {
     try {
       // Update the ticket to claim it by current agent
@@ -240,10 +256,9 @@ export const AgentDashboard = () => {
 
   const handleQuickAssign = async (ticketId: string) => {
     try {
-      // Get favorite workers and assign first one
-      const favoriteWorkers = getFavoriteWorkers();
+      const favoriteWorkers = await getFavoriteWorkers();
       
-      if (favoriteWorkers.length === 0) {
+      if (!favoriteWorkers || favoriteWorkers.length === 0) {
         toast({
           title: "No Favorite Workers",
           description: "Please mark a worker as favorite first.",
@@ -252,9 +267,12 @@ export const AgentDashboard = () => {
         return;
       }
 
-      const favoriteWorker = favoriteWorkers[0]; // Use first favorite worker
+      const favoriteWorker = favoriteWorkers[0];
       
-      // Update the ticket to assign it to the favorite worker
+      if (!favoriteWorker.id) {
+        throw new Error('Invalid worker ID');
+      }
+
       const { error } = await supabase
         .from('maintenance_requests')
         .update({ 
@@ -263,28 +281,23 @@ export const AgentDashboard = () => {
         })
         .eq('id', ticketId);
 
-      if (error) {
-        console.error('Error assigning worker:', error);
-        toast({
-          title: "Error",
-          description: "Failed to assign worker",
-          variant: "destructive",
-        });
-        return;
-      }
+      if (error) throw error;
 
       toast({
         title: "Worker Assigned",
-        description: `${favoriteWorker.name} has been automatically assigned to this ticket.`,
+        description: `${favoriteWorker.name} has been assigned to this ticket.`,
       });
       
-      // Refresh the data to show updated status
-      await fetchMaintenanceRequests();
+      // Refresh both maintenance requests and workers
+      await Promise.all([
+        fetchMaintenanceRequests(),
+        fetchWorkers()
+      ]);
     } catch (error) {
       console.error('Error assigning worker:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "Failed to assign worker",
         variant: "destructive",
       });
     }
@@ -311,7 +324,8 @@ export const AgentDashboard = () => {
         return;
       }
 
-      const worker = getAllWorkers().find(w => w.id === workerId);
+      const allWorkers = await getAllWorkers();
+      const worker = allWorkers.find(w => w.id === workerId);
       toast({
         title: "Worker Assigned",
         description: `${worker?.name || 'Worker'} has been assigned to this ticket.`,
@@ -331,14 +345,88 @@ export const AgentDashboard = () => {
     }
   };
 
-  const openAssignModal = (ticket: any) => {
-    setSelectedTicketForAssign(ticket);
-    // Filter workers by ticket category - use workers from the matching category or general
-    const categoryWorkers = getWorkersByCategory(ticket.category);
-    const generalWorkers = getWorkersByCategory('general');
-    const allAvailableWorkers = [...categoryWorkers, ...generalWorkers];
-    setWorkers(allAvailableWorkers);
-    setAssignModalOpen(true);
+  const handleDeleteWorker = async (workerId: string) => {
+    try {
+      await deleteWorker(workerId);
+      toast({
+        title: "Worker Deleted",
+        description: "Worker has been permanently removed",
+      });
+      await fetchWorkers(); // Refresh workers list
+    } catch (error) {
+      console.error('Error deleting worker:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete worker",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReassignWorker = async (ticketId: string) => {
+    try {
+      // First, clear the current worker assignment
+      const { error } = await supabase
+        .from('maintenance_requests')
+        .update({ 
+          assigned_worker_id: null,
+          status: 'claimed' // Reset status to claimed
+        })
+        .eq('id', ticketId);
+
+      if (error) throw error;
+
+      // Then open the assign modal to select new worker
+      const ticket = tickets.find(t => t.id === ticketId);
+      if (ticket) {
+        openAssignModal(ticket);
+      }
+
+      toast({
+        title: "Worker Unassigned",
+        description: "Please select a new worker to assign",
+      });
+      
+      await fetchMaintenanceRequests();
+    } catch (error) {
+      console.error('Error reassigning worker:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reassign worker",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openAssignModal = async (ticket: any) => {
+    try {
+      setSelectedTicketForAssign(ticket);
+      // First check if the category exists
+      console.log('Ticket category:', ticket.category); // Debug log
+      
+      const categoryWorkers = await getWorkersByCategory(ticket.category.toLowerCase());
+      console.log('Found workers:', categoryWorkers); // Debug log
+      
+      if (!categoryWorkers || categoryWorkers.length === 0) {
+        // If no workers found, try getting all workers as fallback
+        const allWorkers = await getAllWorkers();
+        const filteredWorkers = allWorkers.filter(
+          worker => worker.category?.toLowerCase() === ticket.category.toLowerCase()
+        );
+        setWorkers(filteredWorkers);
+      } else {
+        setWorkers(categoryWorkers);
+      }
+      
+      setAssignModalOpen(true);
+    } catch (error) {
+      console.error('Error loading workers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load workers",
+        variant: "destructive",
+      });
+    }
   };
 
   // Helper functions to filter tickets
@@ -434,9 +522,9 @@ export const AgentDashboard = () => {
             </TableCell>
             <TableCell>
               <p className="text-sm">
-                {ticket.assigned_worker_id ? 
-                  (getWorkerById(ticket.assigned_worker_id)?.name || ticket.assigned_worker_id) : 
-                  'Unassigned'}
+                {ticket.assigned_worker_id
+                  ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || ticket.assigned_worker_id
+                  : 'Unassigned'}
               </p>
             </TableCell>
             {isAllAgencyTab && (
@@ -485,6 +573,16 @@ export const AgentDashboard = () => {
                           Assign
                         </Button>
                       </div>
+                    )}
+                    {ticket.assigned_worker_id && (
+                      <Button 
+                        type="button"
+                        size="sm"
+                        onClick={() => handleReassignWorker(ticket.id)}
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                      >
+                        Reassign
+                      </Button>
                     )}
                   </>
                 )}
@@ -723,13 +821,26 @@ export const AgentDashboard = () => {
                             <p className="text-xs text-muted-foreground">{worker.phone}</p>
                           </div>
                         </div>
-                        <Button 
-                          type="button"
-                          onClick={() => handleAssignWorker(selectedTicketForAssign?.id, worker.id)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          Assign
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button 
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteWorker(worker.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            type="button"
+                            onClick={() => handleAssignWorker(selectedTicketForAssign?.id, worker.id)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            Assign
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

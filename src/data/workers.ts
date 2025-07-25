@@ -1,102 +1,49 @@
-// Shared worker data structure matching tenant issue categories
-export const workerCategories = [
-  {
-    id: 'plumbing',
-    name: 'Plumbing',
-    workers: [
-      {
-        id: 'sd',
-        initials: 'SD',
-        name: 'Sarah Davis',
-        specialty: 'Senior Plumber',
-        rating: 4.8,
-        phone: '+44 7700 123456',
-        description: 'Professional Plumbing Services',
-        favorite: true,
-        category: 'plumbing'
-      }
-    ]
-  },
-  {
-    id: 'electrical',
-    name: 'Electrical',
-    workers: []
-  },
-  {
-    id: 'hvac',
-    name: 'HVAC',
-    workers: [
-      {
-        id: 'mj',
-        initials: 'MJ',
-        name: 'Mike Johnson',
-        specialty: 'HVAC Specialist',
-        rating: 4.2,
-        phone: '+44 7700 654321',
-        description: 'Expert Heating & Cooling Repairs',
-        favorite: false,
-        category: 'hvac'
-      }
-    ]
-  },
-  {
-    id: 'appliances',
-    name: 'Appliances',
-    workers: []
-  },
-  {
-    id: 'pest-control',
-    name: 'Pest Control',
-    workers: []
-  },
-  {
-    id: 'security',
-    name: 'Locks/Security',
-    workers: []
-  },
-  {
-    id: 'painting',
-    name: 'Painting/Walls',
-    workers: []
-  },
-  {
-    id: 'flooring',
-    name: 'Flooring',
-    workers: []
-  },
-  {
-    id: 'windows-doors',
-    name: 'Windows/Doors',
-    workers: []
-  },
-  {
-    id: 'landscaping',
-    name: 'Landscaping',
-    workers: []
-  },
-  {
-    id: 'other',
-    name: 'Other',
-    workers: []
-  }
-];
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
-// Helper functions to work with worker data
-export const getAllWorkers = () => {
-  return workerCategories.reduce((acc, category) => {
-    return [...acc, ...category.workers];
-  }, [] as any[]);
+// CRUD operations for workers using Supabase
+export const getAllWorkers = async (): Promise<Tables<'workers'>[]> => {
+  const { data, error } = await supabase.from('workers').select('*');
+  if (error) throw error;
+  return data || [];
 };
 
-export const getFavoriteWorkers = () => {
-  return getAllWorkers().filter(worker => worker.favorite);
+export const getFavoriteWorkers = async (): Promise<Tables<'workers'>[]> => {
+  const { data, error } = await supabase.from('workers').select('*').eq('favorite', true);
+  if (error) throw error;
+  return data || [];
 };
 
-export const getWorkersByCategory = (categoryId: string) => {
-  const category = workerCategories.find(cat => cat.id === categoryId);
-  return category ? category.workers : [];
+export const getWorkersByCategory = async (categoryId: string): Promise<Tables<'workers'>[]> => {
+  const { data, error } = await supabase.from('workers').select('*').eq('category', categoryId);
+  if (error) throw error;
+  return data || [];
 };
 
-export const getWorkerById = (workerId: string) => {
-  return getAllWorkers().find(worker => worker.id === workerId);
+export const getWorkerById = async (workerId: string): Promise<Tables<'workers'> | null> => {
+  const { data, error } = await supabase.from('workers').select('*').eq('id', workerId).single();
+  if (error && error.code !== 'PGRST116') throw error;
+  return data || null;
 };
+
+export const addWorker = async (worker: TablesInsert<'workers'>): Promise<Tables<'workers'>> => {
+  const { data, error } = await supabase.from('workers').insert(worker).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const updateWorker = async (workerId: string, updates: Partial<Tables<'workers'>>): Promise<Tables<'workers'>> => {
+  const { data, error } = await supabase.from('workers').update(updates).eq('id', workerId).select().single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteWorker = async (workerId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('workers')
+    .delete()
+    .eq('id', workerId);
+  
+  if (error) throw error;
+};
+
