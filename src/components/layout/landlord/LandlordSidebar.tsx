@@ -5,9 +5,6 @@ import {
   Wrench, 
   DollarSign, 
   MessageSquare, 
-  BarChart3,
-  Users,
-  Settings,
   Crown
 } from 'lucide-react';
 import {
@@ -27,10 +24,7 @@ const menuItems = [
   { title: 'Properties', url: '/properties', icon: Building },
   { title: 'Maintenance', url: '/landlord-maintenance', icon: Wrench },
   { title: 'Finance', url: '/finance', icon: DollarSign },
-  { title: 'Analytics', url: '/analytics', icon: BarChart3 },
-  { title: 'Tenants', url: '/tenants', icon: Users },
   { title: 'Messages', url: '/messages', icon: MessageSquare },
-  { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
 export const LandlordSidebar = () => {

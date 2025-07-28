@@ -9,7 +9,9 @@ import {
   FileText,
   Calendar,
   Settings,
-  Wrench
+  Wrench,
+  Crown,
+  UserPlus
 } from 'lucide-react';
 import {
   Sidebar,
@@ -26,6 +28,8 @@ import {
 const menuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
   { title: 'Workers', url: '/workers', icon: Users },
+  { title: 'Tenants', url: '/agent-tenants', icon: UserPlus },
+  { title: 'Landlords', url: '/agent-landlords', icon: Crown },
   { title: 'Messages', url: '/messages', icon: MessageSquare },
   { title: 'Invoices', url: '/invoices', icon: FileText },
 ];
