@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Table, 
   TableBody, 
@@ -17,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Select, 
   SelectContent, 
@@ -164,6 +166,8 @@ export const AgentDashboard = () => {
 
 // Move your existing component code here
 const AgentDashboardContent = () => {
+  const navigate = useNavigate();
+  
   // Add null checks for initial state
   const [tickets, setTickets] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -175,15 +179,21 @@ const AgentDashboardContent = () => {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [completionModalOpen, setCompletionModalOpen] = useState(false);
-  const [completionData, setCompletionData] = useState({
-    actualCost: '',
-    agentNotes: '',
-    selectedTicketId: null
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [quoteData, setQuoteData] = useState({
+    estimatedCost: '',
+    estimatedTime: '',
+    description: ''
   });
   const [activeTab, setActiveTab] = useState('unassigned');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editData, setEditData] = useState<any>(null);
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [selectedTicketForComplete, setSelectedTicketForComplete] = useState(null);
+  const [additionalCosts, setAdditionalCosts] = useState({
+    amount: '',
+    description: ''
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -234,7 +244,7 @@ const AgentDashboardContent = () => {
         const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('id, name, username')
+          .select('*')
           .in('id', tenantIds);
 
         if (profilesError) {
@@ -315,7 +325,7 @@ const AgentDashboardContent = () => {
     }
   };
 
-  const handleQuickAssign = async (ticketId: string) => {
+  const handleQuickAssign = async (ticketId: string, ticketCategory: string) => {
     try {
       const favoriteWorkers = await getFavoriteWorkers();
       
@@ -328,25 +338,53 @@ const AgentDashboardContent = () => {
         return;
       }
 
-      const favoriteWorker = favoriteWorkers[0];
+      // Filter favorite workers by the ticket's category with flexible matching
+      const normalizeCategory = (cat) => cat?.toLowerCase().replace(/[\/\-\s]/g, '');
+      const normalizedTicketCategory = normalizeCategory(ticketCategory);
+      
+      const categoryFavoriteWorkers = favoriteWorkers.filter(worker => {
+        const normalizedWorkerCategory = normalizeCategory(worker.category);
+        return normalizedWorkerCategory === normalizedTicketCategory;
+      });
+
+      if (categoryFavoriteWorkers.length === 0) {
+        toast({
+          title: "No Category Favorite Workers",
+          description: `No favorite workers found for ${ticketCategory} category.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const favoriteWorker = categoryFavoriteWorkers[0];
       
       if (!favoriteWorker.id) {
         throw new Error('Invalid worker ID');
       }
 
+      const currentTicket = tickets.find(t => t.id === ticketId);
+
       const { error } = await supabase
         .from('maintenance_requests')
         .update({ 
           assigned_worker_id: favoriteWorker.id,
-          status: 'in_process'
+          status: 'quote_submitted',
+          // Clear previous quote data if reassigning
+          ...(currentTicket?.status === 'rejected' && {
+            estimated_cost: null,
+            estimated_time: null,
+            quote_description: null
+          })
         })
         .eq('id', ticketId);
 
       if (error) throw error;
 
+      const isReassign = currentTicket?.status === 'rejected';
+
       toast({
-        title: "Worker Assigned",
-        description: `${favoriteWorker.name} has been assigned to this ticket.`,
+        title: isReassign ? "Worker Reassigned" : "Worker Assigned",
+        description: `${favoriteWorker.name} has been ${isReassign ? 'reassigned to' : 'assigned to'} this ticket.`,
       });
       
       // Refresh both maintenance requests and workers
@@ -358,20 +396,126 @@ const AgentDashboardContent = () => {
       console.error('Error assigning worker:', error);
       toast({
         title: "Error",
-        description: "Failed to assign worker",
+        description: `Failed to assign worker: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     }
   };
 
-  const handleAssignWorker = async (ticketId: string, workerId: string) => {
+  const handleCompleteTicket = async () => {
     try {
+      if (!selectedTicketForComplete?.id) {
+        toast({
+          title: "Error",
+          description: "No ticket selected for completion",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Calculate total cost
+      const estimatedCost = parseFloat(selectedTicketForComplete.estimated_cost) || 0;
+      const additionalCost = parseFloat(additionalCosts.amount) || 0;
+      const totalCost = estimatedCost + additionalCost;
+
+      const updateData: any = {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        actual_cost: totalCost
+      };
+
+      // Add additional cost description if provided
+      if (additionalCosts.description) {
+        updateData.additional_cost_description = additionalCosts.description;
+      }
+
+      if (additionalCost > 0) {
+        updateData.additional_cost = additionalCost;
+      }
+
+      const { error } = await supabase
+        .from('maintenance_requests')
+        .update(updateData)
+        .eq('id', selectedTicketForComplete.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Ticket Completed",
+        description: "Ticket has been marked as completed and moved to invoices.",
+      });
+
+      // Close modal and reset state
+      setCompleteModalOpen(false);
+      setSelectedTicketForComplete(null);
+      setAdditionalCosts({ amount: '', description: '' });
+
+      // Refresh data
+      await fetchMaintenanceRequests();
+
+      // Navigate to invoices page after a short delay
+      setTimeout(() => {
+        navigate('/invoices');
+      }, 1000);
+
+    } catch (error) {
+      console.error('Error completing ticket:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete ticket",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openCompleteModal = (ticket: any) => {
+    setSelectedTicketForComplete(ticket);
+    setCompleteModalOpen(true);
+  };
+
+  const handleAssignWorker = async (ticketId: string | undefined, workerId: string) => {
+    try {
+      if (!ticketId) {
+        toast({
+          title: "Error",
+          description: "No ticket selected for assignment",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!workerId) {
+        toast({
+          title: "Error",
+          description: "No worker selected",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const currentTicket = tickets.find(t => t.id === ticketId);
+      
+      if (!currentTicket) {
+        toast({
+          title: "Error",
+          description: "Ticket not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Update the ticket to assign it to a specific worker
       const { error } = await supabase
         .from('maintenance_requests')
         .update({ 
           assigned_worker_id: workerId,
-          status: 'in_process'
+          status: 'quote_submitted',
+          // Clear previous quote data if reassigning
+          ...(currentTicket.status === 'rejected' && {
+            estimated_cost: null,
+            estimated_time: null,
+            quote_description: null
+          })
         })
         .eq('id', ticketId);
 
@@ -379,7 +523,7 @@ const AgentDashboardContent = () => {
         console.error('Error assigning worker:', error);
         toast({
           title: "Error",
-          description: "Failed to assign worker",
+          description: `Failed to assign worker: ${error.message}`,
           variant: "destructive",
         });
         return;
@@ -387,9 +531,11 @@ const AgentDashboardContent = () => {
 
       const allWorkers = await getAllWorkers();
       const worker = allWorkers.find(w => w.id === workerId);
+      const isReassign = currentTicket.status === 'rejected';
+      
       toast({
-        title: "Worker Assigned",
-        description: `${worker?.name || 'Worker'} has been assigned to this ticket.`,
+        title: isReassign ? "Worker Reassigned" : "Worker Assigned",
+        description: `${worker?.name || 'Worker'} has been ${isReassign ? 'reassigned to' : 'assigned to'} this ticket.`,
       });
       
       // Close modal and refresh data
@@ -400,7 +546,7 @@ const AgentDashboardContent = () => {
       console.error('Error assigning worker:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: `Failed to assign worker: ${error.message || 'Unknown error'}`,
         variant: "destructive",
       });
     }
@@ -427,18 +573,29 @@ const AgentDashboardContent = () => {
   const openAssignModal = async (ticket: any) => {
     try {
       setSelectedTicketForAssign(ticket);
-      // First check if the category exists
-      console.log('Ticket category:', ticket.category); // Debug log
       
-      const categoryWorkers = await getWorkersByCategory(ticket.category.toLowerCase());
-      console.log('Found workers:', categoryWorkers); // Debug log
+      // Get workers by category using database query
+      const categoryWorkers = await getWorkersByCategory(ticket.category);
       
       if (!categoryWorkers || categoryWorkers.length === 0) {
-        // If no workers found, try getting all workers as fallback
+        // More flexible category matching
+        const normalizeCategory = (cat) => cat?.toLowerCase().replace(/[\/\-\s]/g, '');
+        const normalizedTicketCategory = normalizeCategory(ticket.category);
+        
         const allWorkers = await getAllWorkers();
-        const filteredWorkers = allWorkers.filter(
-          worker => worker.category?.toLowerCase() === ticket.category.toLowerCase()
-        );
+        const filteredWorkers = allWorkers.filter(worker => {
+          const normalizedWorkerCategory = normalizeCategory(worker.category);
+          
+          // Debug log for testing
+          console.log(`🔍 Category matching test:
+            Ticket: "${ticket.category}" → normalized: "${normalizedTicketCategory}"
+            Worker: "${worker.name}" category: "${worker.category}" → normalized: "${normalizedWorkerCategory}"
+            Match: ${normalizedWorkerCategory === normalizedTicketCategory}`);
+          
+          return normalizedWorkerCategory === normalizedTicketCategory;
+        });
+        
+        console.log(`✅ Found ${filteredWorkers.length} matching workers for category "${ticket.category}"`);
         setWorkers(filteredWorkers);
       } else {
         setWorkers(categoryWorkers);
@@ -455,45 +612,98 @@ const AgentDashboardContent = () => {
     }
   };
 
-  const handleCompleteTicket = async (ticketId: string) => {
-    setCompletionData({
-      actualCost: '',
-      agentNotes: '',
-      selectedTicketId: ticketId
-    });
-    setCompletionModalOpen(true);
-  };
-
-  const handleSubmitCompletion = async () => {
+  const handleSubmitQuote = async () => {
     try {
-      if (!completionData.selectedTicketId) return;
+      if (!selectedTicket?.id) return;
+
+      if (!quoteData.estimatedCost) {
+        toast({
+          title: "Error",
+          description: "Please enter an estimated cost",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const estimatedCostNum = parseFloat(quoteData.estimatedCost);
+      if (isNaN(estimatedCostNum) || estimatedCostNum <= 0) {
+        toast({
+          title: "Error",
+          description: "Please enter a valid estimated cost greater than 0",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Submitting quote from dashboard:', {
+        id: selectedTicket.id,
+        estimatedCost: quoteData.estimatedCost,
+        estimatedCostParsed: estimatedCostNum
+      });
 
       const { error } = await supabase
         .from('maintenance_requests')
         .update({ 
-          status: 'completed',
-          actual_cost: parseFloat(completionData.actualCost),
-          agent_notes: completionData.agentNotes,
-          completed_at: new Date().toISOString()
+          estimated_cost: estimatedCostNum,
+          status: 'pending_approval'
         })
-        .eq('id', completionData.selectedTicketId);
+        .eq('id', selectedTicket.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        toast({
+          title: "Database Error",
+          description: `Failed to submit quote: ${error.message}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Quote submitted successfully from dashboard');
 
       toast({
-        title: "Ticket Completed",
-        description: "The maintenance request has been marked as completed.",
+        title: "Quote Submitted",
+        description: "Quote has been submitted for landlord approval.",
       });
       
-      setCompletionModalOpen(false);
+      setQuoteModalOpen(false);
+      setQuoteData({ estimatedCost: '', estimatedTime: '', description: '' });
       await fetchMaintenanceRequests();
     } catch (error) {
-      console.error('Error completing ticket:', error);
+      console.error('Error submitting quote:', error);
       toast({
         title: "Error",
-        description: "Failed to complete the ticket",
+        description: `Failed to submit quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
+    }
+  };
+
+  // Helper function to check if there are favorite workers for a specific category
+  const hasFavoriteWorkersForCategory = async (category: string) => {
+    try {
+      const favoriteWorkers = await getFavoriteWorkers();
+      if (!favoriteWorkers || favoriteWorkers.length === 0) {
+        return false;
+      }
+      
+      const normalizeCategory = (cat) => cat?.toLowerCase().replace(/[\/\-\s]/g, '');
+      const normalizedTicketCategory = normalizeCategory(category);
+      
+      const categoryFavoriteWorkers = favoriteWorkers.filter(worker => {
+        const normalizedWorkerCategory = normalizeCategory(worker.category);
+        return normalizedWorkerCategory === normalizedTicketCategory;
+      });
+      
+      return categoryFavoriteWorkers.length > 0;
+    } catch (error) {
+      console.error('Error checking favorite workers:', error);
+      return false;
     }
   };
 
@@ -503,17 +713,16 @@ const AgentDashboardContent = () => {
   );
 
   const getMyTickets = () => tickets.filter(ticket => 
-    ticket.agent_notes === 'current_agent' || ticket.status === 'claimed' || ticket.status === 'in_process'
+    (ticket.agent_notes === 'current_agent' || 
+    ticket.status === 'claimed' || 
+    ticket.status === 'in_process' || 
+    ticket.status === 'quote_submitted' || 
+    ticket.status === 'pending_approval' ||
+    ticket.status === 'rejected') &&
+    ticket.status !== 'completed'  // Exclude completed tickets from My Issues
   );
 
   const getAllTickets = () => tickets;
-
-  const getCompletedTickets = () => tickets.filter(ticket => ticket.status === 'completed');
-
-  // Get completed tickets with actual costs for invoicing
-  const getInvoiceTickets = () => tickets.filter(ticket => 
-    ticket.status === 'completed' && ticket.actual_cost && ticket.actual_cost > 0
-  );
 
   // Filter tickets based on search and filters
   const filteredTickets = (ticketList) => {
@@ -533,13 +742,42 @@ const AgentDashboardContent = () => {
   const renderTicketTable = (ticketList, isAllAgencyTab = false) => {
     if (!ticketList) return null;
     
+    // Component to handle quick assign button visibility
+    const QuickAssignButton = React.memo(({ ticket }: { ticket: any }) => {
+      const [hasFavorites, setHasFavorites] = React.useState(null);
+
+      React.useEffect(() => {
+        const checkFavorites = async () => {
+          const result = await hasFavoriteWorkersForCategory(ticket.category);
+          setHasFavorites(result);
+        };
+        checkFavorites();
+      }, [ticket.category]);
+
+      // Show nothing while checking or if no favorites
+      if (hasFavorites === null || !hasFavorites) {
+        return null;
+      }
+
+      return (
+        <Button 
+          type="button"
+          size="sm"
+          onClick={() => handleQuickAssign(ticket.id, ticket.category)}
+          className="bg-green-600 hover:bg-green-700 text-white"
+        >
+          Quick Assign
+        </Button>
+      );
+    });
+    
     return (
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Category</TableHead>
             <TableHead>Tenant Name</TableHead>
-            <TableHead>Tenant Number</TableHead>
+            <TableHead>Tenant Phone</TableHead>
             <TableHead>Property Address</TableHead>
             <TableHead>Priority</TableHead>
             <TableHead>Status</TableHead>
@@ -568,15 +806,22 @@ const AgentDashboardContent = () => {
                 <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
               </TableCell>
               <TableCell>
-                <p className="text-sm">{ticket.tenant_profile?.username || 'N/A'}</p>
+                <p className="text-sm">{ticket.tenant_profile?.phone || ticket.tenant_phone || ticket.tenant_profile?.username || 'N/A'}</p>
               </TableCell>
               <TableCell>
-                <p className="text-sm">{ticket.property_address || 'Property Address Not Available'}</p>
+                <p className="text-sm">{ticket.tenant_profile?.address || ticket.property_address || ticket.tenant_address || 'Address Not Available'}</p>
               </TableCell>
               <TableCell>
-                <Badge variant={ticket.priority === 'urgent' ? 'destructive' : 
-                              ticket.priority === 'high' ? 'destructive' : 
-                              ticket.priority === 'medium' ? 'default' : 'secondary'}>
+                <Badge 
+                  variant="outline"
+                  className={
+                    ticket.priority === 'urgent' ? 'bg-red-500 text-white border-red-500' :
+                    ticket.priority === 'high' ? 'bg-orange-500 text-white border-orange-500' :
+                    ticket.priority === 'medium' ? 'bg-blue-500 text-white border-blue-500' :
+                    ticket.priority === 'low' ? 'bg-green-500 text-white border-green-500' :
+                    'bg-gray-500 text-white border-gray-500'
+                  }
+                >
                   {ticket.priority}
                 </Badge>
               </TableCell>
@@ -584,16 +829,25 @@ const AgentDashboardContent = () => {
                 <div className="flex items-center space-x-1">
                   {ticket.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
                   {ticket.status === 'in_process' && <Clock className="h-4 w-4 text-blue-500" />}
+                  {ticket.status === 'pending_approval' && <Clock className="h-4 w-4 text-orange-500" />}
+                  {ticket.status === 'quote_submitted' && <FileText className="h-4 w-4 text-purple-500" />}
                   {ticket.status === 'claimed' && <User className="h-4 w-4 text-yellow-500" />}
                   {(ticket.status === 'submitted' || ticket.status === 'open') && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                  {ticket.status === 'rejected' && <XCircle className="h-4 w-4 text-red-500" />}
                   <span className={`text-sm capitalize ${
                     ticket.status === 'completed' ? 'text-green-700' :
                     ticket.status === 'in_process' ? 'text-blue-700' :
+                    ticket.status === 'pending_approval' ? 'text-orange-700' :
+                    ticket.status === 'quote_submitted' ? 'text-purple-700' :
                     ticket.status === 'claimed' ? 'text-yellow-700' :
+                    ticket.status === 'rejected' ? 'text-red-700' :
                     'text-red-700'
                   }`}>
                     {ticket.status === 'in_process' ? 'In Process' : 
                      ticket.status === 'submitted' ? 'Open' : 
+                     ticket.status === 'pending_approval' ? 'Pending Approval' :
+                     ticket.status === 'quote_submitted' ? 'Quote Submitted' :
+                     ticket.status === 'rejected' ? 'Rejected - Reassign' :
                      ticket.status}
                   </span>
                 </div>
@@ -634,14 +888,7 @@ const AgentDashboardContent = () => {
                       )}
                       {ticket.status === 'claimed' && ticket.agent_notes === 'current_agent' && !ticket.assigned_worker_id && (
                         <div className="flex flex-col gap-1">
-                          <Button 
-                            type="button"
-                            size="sm"
-                            onClick={() => handleQuickAssign(ticket.id)}
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            Quick Assign
-                          </Button>
+                          <QuickAssignButton ticket={ticket} />
                           <Button 
                             type="button"
                             size="sm"
@@ -652,12 +899,47 @@ const AgentDashboardContent = () => {
                           </Button>
                         </div>
                       )}
-
-                      {ticket.status === 'in_process' && (
+                      {ticket.status === 'in_process' && !ticket.assigned_worker_id && (
                         <Button 
                           type="button"
                           size="sm"
-                          onClick={() => handleCompleteTicket(ticket.id)}
+                          onClick={() => openAssignModal(ticket)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          Assign Worker
+                        </Button>
+                      )}
+                      {ticket.status === 'quote_submitted' && (
+                        <Button 
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setQuoteModalOpen(true);
+                          }}
+                          className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          Submit Quote
+                        </Button>
+                      )}
+                      {ticket.status === 'rejected' && (
+                        <div className="flex flex-col gap-1">
+                          <QuickAssignButton ticket={ticket} />
+                          <Button 
+                            type="button"
+                            size="sm"
+                            onClick={() => openAssignModal(ticket)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            Reassign Worker
+                          </Button>
+                        </div>
+                      )}
+                      {ticket.status === 'in_process' && activeTab !== 'all-agency' && activeTab !== 'unassigned' && (
+                        <Button 
+                          type="button"
+                          size="sm"
+                          onClick={() => openCompleteModal(ticket)}
                           className="bg-green-600 hover:bg-green-700 text-white"
                         >
                           Complete
@@ -665,158 +947,6 @@ const AgentDashboardContent = () => {
                       )}
                     </>
                   )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    );
-  };
-
-  const renderInvoiceTable = (ticketList) => {
-    if (!ticketList) return null;
-    
-    return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Invoice #</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Tenant Name</TableHead>
-            <TableHead>Property Address</TableHead>
-            <TableHead>Completed Date</TableHead>
-            <TableHead>Assigned Worker</TableHead>
-            <TableHead>Estimated Cost</TableHead>
-            <TableHead>Actual Cost</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredTickets(ticketList).map((ticket) => (
-            <TableRow key={ticket.id}>
-              <TableCell>
-                <p className="font-medium text-sm">INV-{ticket.id?.slice(-8) || '12345678'}</p>
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center space-x-2">
-                  <div className={`p-2 rounded-lg ${issueCategories[ticket.category]?.bg || 'bg-muted'}`}>
-                    {React.createElement(issueCategories[ticket.category]?.icon || Wrench, {
-                      className: `h-4 w-4 ${issueCategories[ticket.category]?.color || 'text-muted-foreground'}`
-                    })}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{ticket.title}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{ticket.category}</p>
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell>
-                <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
-              </TableCell>
-              <TableCell>
-                <p className="text-sm">{ticket.property_address || 'Property Address Not Available'}</p>
-              </TableCell>
-              <TableCell>
-                <p className="text-sm">
-                  {ticket.completed_at 
-                    ? new Date(ticket.completed_at).toLocaleDateString()
-                    : 'N/A'}
-                </p>
-              </TableCell>
-              <TableCell>
-                <p className="text-sm">
-                  {ticket.assigned_worker_id
-                    ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || ticket.assigned_worker_id
-                    : 'Unassigned'}
-                </p>
-              </TableCell>
-              <TableCell>
-                <p className="text-sm font-medium">
-                  £{ticket.estimated_cost ? ticket.estimated_cost.toFixed(2) : '0.00'}
-                </p>
-              </TableCell>
-              <TableCell>
-                <p className="text-sm font-bold text-green-600">
-                  £{ticket.actual_cost ? ticket.actual_cost.toFixed(2) : '0.00'}
-                </p>
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                  Completed
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex space-x-1">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => setSelectedTicket(ticket)}
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                    View Details
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="default"
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => {
-                      // Generate and download invoice
-                      const invoiceData = {
-                        invoiceNumber: `INV-${ticket.id?.slice(-8) || '12345678'}`,
-                        tenant: ticket.tenant_profile?.name || 'Unknown',
-                        property: ticket.property_address || 'Property Address Not Available',
-                        completedDate: ticket.completed_at ? new Date(ticket.completed_at).toLocaleDateString() : 'N/A',
-                        worker: ticket.assigned_worker_id ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || ticket.assigned_worker_id : 'Unassigned',
-                        category: ticket.category,
-                        title: ticket.title,
-                        estimatedCost: ticket.estimated_cost || 0,
-                        actualCost: ticket.actual_cost || 0
-                      };
-                      
-                      // Simple invoice generation (you can enhance this with a proper PDF library)
-                      const invoiceContent = `
-INVOICE
-
-Invoice Number: ${invoiceData.invoiceNumber}
-Date: ${new Date().toLocaleDateString()}
-
-Bill To:
-${invoiceData.tenant}
-${invoiceData.property}
-
-Work Completed:
-Category: ${invoiceData.category}
-Description: ${invoiceData.title}
-Completed Date: ${invoiceData.completedDate}
-Worker: ${invoiceData.worker}
-
-Costs:
-Estimated Cost: £${invoiceData.estimatedCost.toFixed(2)}
-Actual Cost: £${invoiceData.actualCost.toFixed(2)}
-
-Total Amount: £${invoiceData.actualCost.toFixed(2)}
-                      `;
-                      
-                      // Create and download text file (you can replace this with PDF generation)
-                      const element = document.createElement('a');
-                      const file = new Blob([invoiceContent], { type: 'text/plain' });
-                      element.href = URL.createObjectURL(file);
-                      element.download = `${invoiceData.invoiceNumber}.txt`;
-                      document.body.appendChild(element);
-                      element.click();
-                      document.body.removeChild(element);
-                      
-                      toast({
-                        title: "Invoice Generated",
-                        description: `Invoice ${invoiceData.invoiceNumber} has been generated and downloaded.`,
-                      });
-                    }}
-                  >
-                    <FileText className="w-4 h-4 mr-1" />
-                    Generate Invoice
-                  </Button>
                 </div>
               </TableCell>
             </TableRow>
@@ -915,29 +1045,14 @@ Total Amount: £${invoiceData.actualCost.toFixed(2)}
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <FileText className="h-4 w-4 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-muted-foreground">Invoices</p>
-                <p className="text-2xl font-bold">{getInvoiceTickets().length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="unassigned">Unassigned Issues</TabsTrigger>
           <TabsTrigger value="my-issues">My Issues</TabsTrigger>
           <TabsTrigger value="all-agency">All Agency Issues</TabsTrigger>
-          <TabsTrigger value="completed">Completed Issues</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
         </TabsList>
 
         {/* Filters */}
@@ -995,7 +1110,10 @@ Total Amount: £${invoiceData.actualCost.toFixed(2)}
                     <SelectItem value="all">All Statuses</SelectItem>
                     <SelectItem value="open">Open</SelectItem>
                     <SelectItem value="claimed">Claimed</SelectItem>
+                    <SelectItem value="quote_submitted">Quote Submitted</SelectItem>
+                    <SelectItem value="pending_approval">Pending Approval</SelectItem>
                     <SelectItem value="in_process">In Process</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1027,38 +1145,6 @@ Total Amount: £${invoiceData.actualCost.toFixed(2)}
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="completed" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              {renderTicketTable(getCompletedTickets())}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="invoices" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Invoices
-              </CardTitle>
-              <CardDescription>
-                Generate and manage invoices for completed maintenance requests
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {getInvoiceTickets().length > 0 ? (
-                renderInvoiceTable(getInvoiceTickets())
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No completed tickets with costs available for invoicing</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Ticket Details Modal */}
@@ -1068,6 +1154,7 @@ Total Amount: £${invoiceData.actualCost.toFixed(2)}
           open={!!selectedTicket}
           onOpenChange={(open) => !open && setSelectedTicket(null)}
           onUpdate={fetchMaintenanceRequests}
+          activeTab={activeTab}
         />
       )}
 
@@ -1135,47 +1222,63 @@ Total Amount: £${invoiceData.actualCost.toFixed(2)}
         </DialogContent>
       </Dialog>
 
-      {/* Ticket Completion Modal */}
-      <Dialog open={completionModalOpen} onOpenChange={setCompletionModalOpen}>
+      {/* Quote & Approval Modal */}
+      <Dialog open={quoteModalOpen} onOpenChange={setQuoteModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Complete Maintenance Request</DialogTitle>
+            <DialogTitle>Submit Quote & Request Approval</DialogTitle>
             <DialogDescription>
-              Enter the actual costs and any final notes before marking this request as completed.
+              Enter the estimated cost and time for this maintenance request.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label htmlFor="actualCost" className="text-sm font-medium">
-                Actual Cost (£)
+              <label htmlFor="estimatedCost" className="text-sm font-medium">
+                Estimated Cost (£)
               </label>
               <Input
-                id="actualCost"
+                id="estimatedCost"
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="Enter actual cost"
-                value={completionData.actualCost}
-                onChange={(e) => setCompletionData({
-                  ...completionData,
-                  actualCost: e.target.value
+                placeholder="Enter estimated cost"
+                value={quoteData.estimatedCost}
+                onChange={(e) => setQuoteData({
+                  ...quoteData,
+                  estimatedCost: e.target.value
                 })}
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="agentNotes" className="text-sm font-medium">
-                Completion Notes
+              <label htmlFor="estimatedTime" className="text-sm font-medium">
+                Estimated Time
+              </label>
+              <Input
+                id="estimatedTime"
+                type="text"
+                placeholder="e.g., 2-3 hours, 1 day"
+                value={quoteData.estimatedTime}
+                onChange={(e) => setQuoteData({
+                  ...quoteData,
+                  estimatedTime: e.target.value
+                })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="quoteDescription" className="text-sm font-medium">
+                Work Description
               </label>
               <textarea
-                id="agentNotes"
+                id="quoteDescription"
                 className="w-full min-h-[100px] px-3 py-2 border rounded-md"
-                placeholder="Enter any final notes about the completed work..."
-                value={completionData.agentNotes}
-                onChange={(e) => setCompletionData({
-                  ...completionData,
-                  agentNotes: e.target.value
+                placeholder="Describe the work to be done..."
+                value={quoteData.description}
+                onChange={(e) => setQuoteData({
+                  ...quoteData,
+                  description: e.target.value
                 })}
               />
             </div>
@@ -1184,16 +1287,16 @@ Total Amount: £${invoiceData.actualCost.toFixed(2)}
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setCompletionModalOpen(false)}
+              onClick={() => setQuoteModalOpen(false)}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              onClick={handleSubmitCompletion}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={handleSubmitQuote}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              Complete Request
+              Submit for Approval
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1276,6 +1379,86 @@ Total Amount: £${invoiceData.actualCost.toFixed(2)}
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Ticket Modal */}
+      <Dialog open={completeModalOpen} onOpenChange={setCompleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Complete Ticket</DialogTitle>
+            <DialogDescription>
+              Add any additional costs and mark the ticket as completed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedTicketForComplete && (
+            <div className="space-y-4 py-4">
+              <div className="bg-muted p-3 rounded-lg">
+                <h4 className="font-medium">{selectedTicketForComplete.title}</h4>
+                <p className="text-sm text-muted-foreground">
+                  Estimated Cost: £{selectedTicketForComplete.estimated_cost}
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="additionalAmount" className="text-sm font-medium">
+                  Additional Costs (£)
+                </label>
+                <Input
+                  id="additionalAmount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Enter additional costs if any"
+                  value={additionalCosts.amount}
+                  onChange={(e) => setAdditionalCosts(prev => ({...prev, amount: e.target.value}))}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="additionalDescription" className="text-sm font-medium">
+                  Additional Cost Description
+                </label>
+                <Textarea
+                  id="additionalDescription"
+                  placeholder="Describe additional costs (optional)..."
+                  rows={3}
+                  value={additionalCosts.description}
+                  onChange={(e) => setAdditionalCosts(prev => ({...prev, description: e.target.value}))}
+                />
+              </div>
+
+              {additionalCosts.amount && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-green-800">Total Cost Summary:</p>
+                  <p className="text-sm text-green-700">
+                    Estimated: £{selectedTicketForComplete.estimated_cost} + 
+                    Additional: £{additionalCosts.amount} = 
+                    <span className="font-medium"> £{(parseFloat(selectedTicketForComplete.estimated_cost) + parseFloat(additionalCosts.amount || '0')).toFixed(2)}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCompleteModalOpen(false);
+                setAdditionalCosts({ amount: '', description: '' });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCompleteTicket}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Complete & Move to Invoices
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

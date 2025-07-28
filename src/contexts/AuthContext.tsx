@@ -9,6 +9,8 @@ export interface UserProfile {
   username: string;
   role: UserRole;
   name: string;
+  phone?: string;
+  address?: string;
 }
 
 interface AuthContextType {

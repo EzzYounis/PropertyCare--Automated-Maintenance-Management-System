@@ -28,7 +28,8 @@ import {
   Paintbrush,
   Layers,
   TreePine,
-  DoorOpen
+  DoorOpen,
+  Trash2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AgentWorkerDetail } from './AgentWorkerDetail';
@@ -61,6 +62,8 @@ export const AgentWorkers = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [workerToDelete, setWorkerToDelete] = useState(null);
   const [newWorkerData, setNewWorkerData] = useState({
     name: '',
     phone: '',
@@ -75,11 +78,24 @@ export const AgentWorkers = () => {
     const fetchWorkers = async () => {
       try {
         const allWorkers = await getAllWorkers();
-        // Group by category
-        const grouped = categories.map(category => ({
-          ...category,
-          workers: allWorkers.filter(w => w.category === category.id)
-        }));
+        // Group by category and sort favorites first
+        const grouped = categories.map(category => {
+          const categoryWorkers = allWorkers.filter(w => w.category === category.id);
+          // Sort workers: favorites first, then alphabetically by name
+          const sortedWorkers = categoryWorkers.sort((a, b) => {
+            // First sort by favorite status (true first)
+            if (a.favorite !== b.favorite) {
+              return b.favorite ? 1 : -1;
+            }
+            // Then sort alphabetically by name
+            return a.name.localeCompare(b.name);
+          });
+          
+          return {
+            ...category,
+            workers: sortedWorkers
+          };
+        });
         setWorkerData(grouped);
       } catch (e) {
         toast({ title: 'Error', description: 'Failed to load workers', variant: 'destructive' });
@@ -144,16 +160,49 @@ export const AgentWorkers = () => {
 
   const toggleFavorite = async (categoryId: string, workerId: string, currentFavorite: boolean) => {
     try {
-      await updateWorker(workerId, { favorite: !currentFavorite });
-      toast({
-        title: "Favorite Updated",
-        description: "Worker favorite status has been updated.",
-      });
-      // Refresh workers
+      // Get all workers to manage favorites per category
       const allWorkers = await getAllWorkers();
+      
+      if (!currentFavorite) {
+        // If setting as favorite, first remove favorite from other workers in the same category
+        const categoryWorkers = allWorkers.filter(w => w.category === categoryId);
+        const currentFavoriteWorker = categoryWorkers.find(w => w.favorite === true);
+        
+        if (currentFavoriteWorker) {
+          // Remove favorite from current favorite worker
+          await updateWorker(currentFavoriteWorker.id, { favorite: false });
+        }
+        
+        // Set this worker as favorite
+        await updateWorker(workerId, { favorite: true });
+        
+        toast({
+          title: "Favorite Updated",
+          description: `Worker set as favorite for ${categoryId} category.`,
+        });
+      } else {
+        // If removing favorite, just set to false
+        await updateWorker(workerId, { favorite: false });
+        
+        toast({
+          title: "Favorite Removed",
+          description: "Worker removed from favorites.",
+        });
+      }
+      
+      // Refresh workers
+      const updatedWorkers = await getAllWorkers();
       const grouped = categories.map(category => ({
         ...category,
-        workers: allWorkers.filter(w => w.category === category.id)
+        workers: updatedWorkers
+          .filter(w => w.category === category.id)
+          .sort((a, b) => {
+            // First, sort by favorite status (favorites first)
+            if (a.favorite && !b.favorite) return -1;
+            if (!a.favorite && b.favorite) return 1;
+            // Then sort alphabetically by name
+            return a.name.localeCompare(b.name);
+          })
       }));
       setWorkerData(grouped);
     } catch (e) {
@@ -176,6 +225,45 @@ export const AgentWorkers = () => {
     }
   };
 
+  const handleRemoveWorker = (worker: any) => {
+    setWorkerToDelete(worker);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteWorker = async () => {
+    if (!workerToDelete) return;
+    
+    try {
+      await deleteWorker(workerToDelete.id);
+      toast({
+        title: "Worker Removed",
+        description: "Worker has been successfully removed.",
+      });
+      
+      // Refresh workers
+      const allWorkers = await getAllWorkers();
+      const grouped = categories.map(category => ({
+        ...category,
+        workers: allWorkers
+          .filter(w => w.category === category.id)
+          .sort((a, b) => {
+            // First, sort by favorite status (favorites first)
+            if (a.favorite && !b.favorite) return -1;
+            if (!a.favorite && b.favorite) return 1;
+            // Then sort alphabetically by name
+            return a.name.localeCompare(b.name);
+          })
+      }));
+      setWorkerData(grouped);
+      
+      // Close dialog and reset state
+      setShowDeleteDialog(false);
+      setWorkerToDelete(null);
+    } catch (e) {
+      toast({ title: 'Error', description: 'Failed to remove worker', variant: 'destructive' });
+    }
+  };
+
   const handleViewWorker = (worker: any) => {
     setSelectedWorker(worker);
     setIsDetailModalOpen(true);
@@ -190,7 +278,7 @@ export const AgentWorkers = () => {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
-        className={`w-4 h-4 ${
+        className={`w-3 h-3 ${
           i < Math.floor(rating)
             ? 'text-yellow-400 fill-current'
             : 'text-gray-300'
@@ -242,62 +330,67 @@ export const AgentWorkers = () => {
             </CardHeader>
             <CardContent>
               {category.workers.length > 0 ? (
-                <div className="grid gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {category.workers.map((worker) => (
-                    <Card key={worker.id} className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 bg-gradient-agent rounded-full flex items-center justify-center text-white font-bold">
-                            {worker.initials}
+                    <Card key={worker.id} className="p-3 hover:shadow-md transition-shadow">
+                      <div className="flex flex-col space-y-2">
+                        {/* Header with avatar and favorite */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-gradient-agent rounded-full flex items-center justify-center text-white text-sm font-bold">
+                              {worker.initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-sm truncate">{worker.name}</h4>
+                              <p className="text-xs text-muted-foreground truncate">{worker.specialty}</p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="font-semibold text-lg">{worker.name}</h4>
-                            <p className="text-muted-foreground">{worker.specialty}</p>
+                          <div className="flex items-center space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleFavorite(category.id, worker.id, worker.favorite)}
+                              className="h-6 w-6 p-0"
+                            >
+                              <Heart className={`w-3 h-3 ${worker.favorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <MoreHorizontal className="w-3 h-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewWorker(worker)}>
+                                  <Edit className="w-3 h-3 mr-2" />
+                                  Edit Worker
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleRemoveWorker(worker)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="w-3 h-3 mr-2" />
+                                  Delete Worker
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleFavorite(category.id, worker.id, worker.favorite)}
-                          >
-                            <Heart className={`w-4 h-4 ${worker.favorite ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewWorker(worker)}>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleViewWorker(worker)}>
-                                <Edit className="w-4 h-4 mr-2" />
-                                Edit Worker
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-3 flex items-center space-x-1">
-                        {renderStars(worker.rating)}
-                        <span className="text-sm text-muted-foreground ml-2">
-                          {worker.rating}.0 rating
-                        </span>
-                      </div>
-                      
-                      <div className="mt-2 flex items-center space-x-4 text-sm text-muted-foreground">
+                        
+                        {/* Rating */}
                         <div className="flex items-center space-x-1">
-                          <Phone className="w-4 h-4" />
-                          <span>{worker.phone}</span>
+                          {renderStars(worker.rating)}
+                          <span className="text-xs text-muted-foreground">
+                            {worker.rating}.0
+                          </span>
+                        </div>
+                        
+                        {/* Phone */}
+                        <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                          <Phone className="w-3 h-3" />
+                          <span className="truncate">{worker.phone}</span>
                         </div>
                       </div>
-                      
-                      <p className="mt-2 text-sm text-muted-foreground">{worker.description}</p>
                     </Card>
                   ))}
                 </div>
@@ -438,6 +531,44 @@ export const AgentWorkers = () => {
         }}
         onUpdate={handleWorkerUpdate}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              <span>Delete Worker</span>
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-muted-foreground">
+              Are you sure you want to delete <strong>{workerToDelete?.name}</strong>? 
+              This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="flex justify-end space-x-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setWorkerToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDeleteWorker}
+              variant="destructive"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete Worker
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

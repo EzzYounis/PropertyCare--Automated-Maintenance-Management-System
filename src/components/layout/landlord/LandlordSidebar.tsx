@@ -1,4 +1,3 @@
-import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
@@ -26,7 +25,7 @@ import {
 const menuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
   { title: 'Properties', url: '/properties', icon: Building },
-  { title: 'Maintenance', url: '/maintenance', icon: Wrench },
+  { title: 'Maintenance', url: '/landlord-maintenance', icon: Wrench },
   { title: 'Finance', url: '/finance', icon: DollarSign },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Tenants', url: '/tenants', icon: Users },

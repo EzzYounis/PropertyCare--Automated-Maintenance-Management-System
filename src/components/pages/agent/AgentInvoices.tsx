@@ -75,13 +75,13 @@ const getStatusBadge = (status: string) => {
 const getPriorityBadge = (priority: string) => {
   switch (priority) {
     case 'urgent':
-      return <Badge variant="destructive">Urgent</Badge>;
+      return <Badge variant="outline" className="bg-red-500 text-white border-red-500">Urgent</Badge>;
     case 'high':
-      return <Badge variant="destructive">High</Badge>;
+      return <Badge variant="outline" className="bg-orange-500 text-white border-orange-500">High</Badge>;
     case 'medium':
-      return <Badge variant="default">Medium</Badge>;
+      return <Badge variant="outline" className="bg-blue-500 text-white border-blue-500">Medium</Badge>;
     case 'low':
-      return <Badge variant="secondary">Low</Badge>;
+      return <Badge variant="outline" className="bg-green-500 text-white border-green-500">Low</Badge>;
     default:
       return <Badge variant="outline">{priority}</Badge>;
   }

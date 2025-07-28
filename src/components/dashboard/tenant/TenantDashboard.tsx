@@ -11,15 +11,12 @@ import {
   Phone,
   Mail,
   AlertTriangle,
-  CheckCircle,
   Clock
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { EnhancedReportIssueDialog } from '@/components/tenant/EnhancedReportIssueDialog';
 import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 
 export const TenantDashboard = () => {
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
@@ -27,8 +24,6 @@ export const TenantDashboard = () => {
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, profile } = useAuth();
-  const { toast } = useToast();
 
   const fetchMaintenanceRequests = async () => {
     try {
@@ -68,13 +63,18 @@ export const TenantDashboard = () => {
   };
 
   const getPriorityBadge = (priority: string) => {
-    const colors = {
-      urgent: 'destructive',
-      high: 'warning', 
-      medium: 'secondary',
-      low: 'outline'
-    };
-    return <Badge variant={colors[priority as keyof typeof colors] as any}>{priority}</Badge>;
+    switch (priority) {
+      case 'urgent':
+        return <Badge variant="outline" className="bg-red-500 text-white border-red-500">{priority}</Badge>;
+      case 'high':
+        return <Badge variant="outline" className="bg-orange-500 text-white border-orange-500">{priority}</Badge>;
+      case 'medium':
+        return <Badge variant="outline" className="bg-blue-500 text-white border-blue-500">{priority}</Badge>;
+      case 'low':
+        return <Badge variant="outline" className="bg-green-500 text-white border-green-500">{priority}</Badge>;
+      default:
+        return <Badge variant="outline">{priority}</Badge>;
+    }
   };
 
   const openIssues = issues.filter(issue => issue.status !== 'completed');

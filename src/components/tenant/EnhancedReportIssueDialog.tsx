@@ -369,9 +369,10 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
       onOpenChange(false);
     } catch (error) {
       console.error('Error submitting maintenance request:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       toast({
         title: "Error",
-        description: "Failed to submit maintenance request. Please try again.",
+        description: `Failed to submit maintenance request: ${error.message || 'Please try again.'}`,
         variant: "destructive"
       });
     } finally {
