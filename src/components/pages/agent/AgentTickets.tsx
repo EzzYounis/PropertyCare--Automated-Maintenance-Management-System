@@ -16,7 +16,9 @@ import {
   User,
   Calendar,
   DollarSign,
-  Plus
+  Plus,
+  Phone,
+  MapPin
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -57,16 +59,37 @@ export const AgentTickets = () => {
 
   const fetchMaintenanceRequests = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: requests, error: requestsError } = await supabase
         .from('maintenance_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        throw error;
+      if (requestsError) {
+        throw requestsError;
       }
 
-      setTickets(data || []);
+      // Get tenant profiles to display tenant names
+      if (requests && requests.length > 0) {
+        const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', tenantIds);
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+
+        // Combine the data
+        const requestsWithProfiles = requests.map(request => ({
+          ...request,
+          tenant_profile: profiles?.find(p => p.id === request.tenant_id) || null
+        }));
+
+        setTickets(requestsWithProfiles || []);
+      } else {
+        setTickets([]);
+      }
     } catch (error) {
       console.error('Error fetching maintenance requests:', error);
       toast({
@@ -83,13 +106,38 @@ export const AgentTickets = () => {
     fetchMaintenanceRequests();
   }, []);
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityBadge = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'destructive';
-      case 'high': return 'default';
-      case 'medium': return 'secondary';
-      case 'low': return 'outline';
-      default: return 'outline';
+      case 'urgent': 
+        return (
+          <Badge variant="outline" className="bg-red-500 text-white border-red-500">
+            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          </Badge>
+        );
+      case 'high': 
+        return (
+          <Badge variant="outline" className="bg-orange-500 text-white border-orange-500">
+            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          </Badge>
+        );
+      case 'medium': 
+        return (
+          <Badge variant="outline" className="bg-blue-500 text-white border-blue-500">
+            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          </Badge>
+        );
+      case 'low': 
+        return (
+          <Badge variant="outline" className="bg-green-500 text-white border-green-500">
+            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          </Badge>
+        );
+      default: 
+        return (
+          <Badge variant="outline" className="bg-gray-500 text-white border-gray-500">
+            {priority.charAt(0).toUpperCase() + priority.slice(1)}
+          </Badge>
+        );
     }
   };
 
@@ -279,14 +327,21 @@ export const AgentTickets = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           <h3 className="font-semibold text-lg">{ticket.title}</h3>
-                          <Badge variant={getPriorityColor(ticket.priority)}>
-                            {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
-                          </Badge>
+                          {getPriorityBadge(ticket.priority)}
                           <Badge variant="outline">{ticket.category}</Badge>
                         </div>
                         
                         <div className="space-y-1 text-sm text-muted-foreground mb-3">
+                          <p><strong>Tenant:</strong> {ticket.tenant_profile?.name || 'Unknown'}</p>
                           <p><strong>Reported:</strong> {new Date(ticket.created_at).toLocaleDateString()}</p>
+                          <div className="flex items-center gap-1">
+                            <Phone className="w-4 h-4" />
+                            <span><strong>Phone:</strong> {ticket.tenant_profile?.phone || ticket.tenant_phone || ticket.tenant_profile?.username || 'Not provided'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-4 h-4" />
+                            <span><strong>Address:</strong> {ticket.tenant_profile?.address || ticket.property_address || ticket.tenant_address || 'Address not available'}</span>
+                          </div>
                           {ticket.room && <p><strong>Room:</strong> {ticket.room}</p>}
                           {ticket.subcategory && <p><strong>Type:</strong> {ticket.subcategory}</p>}
                           {ticket.assigned_worker_id && <p><strong>Assigned to:</strong> Agent</p>}

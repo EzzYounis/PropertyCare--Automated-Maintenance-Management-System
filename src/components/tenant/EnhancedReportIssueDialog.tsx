@@ -345,6 +345,8 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
             quick_fixes: quickFixesCompleted,
             preferred_time_slots: selectedTimeSlots,
             preferred_date: preferredDate ? format(preferredDate, 'yyyy-MM-dd') : null,
+            tenant_phone: profile?.phone || null,
+            property_address: profile?.address || null,
             photos: [], // For now, just empty array - can implement file upload later
           }
         ])

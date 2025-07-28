@@ -18,6 +18,7 @@ import { AgentTickets } from "@/components/pages/agent/AgentTickets";
 import { AgentWorkers } from "@/components/pages/agent/AgentWorkers";
 import { AgentMessages } from "@/components/pages/agent/AgentMessages";
 import { AgentInvoices } from "@/components/pages/agent/AgentInvoices";
+import { LandlordMaintenance } from "@/components/pages/landlord/LandlordMaintenance";
 import { Properties } from "@/components/pages/Properties";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,16 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <TenantMaintenance />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/landlord-maintenance"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <LandlordMaintenance />
             </Layout>
           </ProtectedRoute>
         }

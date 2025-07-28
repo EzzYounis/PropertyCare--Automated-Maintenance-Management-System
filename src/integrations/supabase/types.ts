@@ -17,13 +17,17 @@ export type Database = {
       maintenance_requests: {
         Row: {
           actual_cost: number | null;
+          additional_cost: number | null;
+          additional_cost_description: string | null;
           agent_notes: string | null;
           assigned_worker_id: string | null;
           category: string;
           completed_at: string | null;
+          completion_notes: string | null;
           created_at: string;
           description: string | null;
           estimated_cost: number | null;
+          estimated_time: string | null;
           id: string;
           landlord_notes: string | null;
           photos: string[] | null;
@@ -31,6 +35,7 @@ export type Database = {
           preferred_time_slots: string[] | null;
           priority: string;
           quick_fixes: string[] | null;
+          quote_description: string | null;
           room: string | null;
           status: string;
           subcategory: string | null;
@@ -40,13 +45,17 @@ export type Database = {
         };
         Insert: {
           actual_cost?: number | null;
+          additional_cost?: number | null;
+          additional_cost_description?: string | null;
           agent_notes?: string | null;
           assigned_worker_id?: string | null;
           category: string;
           completed_at?: string | null;
+          completion_notes?: string | null;
           created_at?: string;
           description?: string | null;
           estimated_cost?: number | null;
+          estimated_time?: string | null;
           id?: string;
           landlord_notes?: string | null;
           photos?: string[] | null;
@@ -54,6 +63,7 @@ export type Database = {
           preferred_time_slots?: string[] | null;
           priority?: string;
           quick_fixes?: string[] | null;
+          quote_description?: string | null;
           room?: string | null;
           status?: string;
           subcategory?: string | null;
@@ -63,13 +73,17 @@ export type Database = {
         };
         Update: {
           actual_cost?: number | null;
+          additional_cost?: number | null;
+          additional_cost_description?: string | null;
           agent_notes?: string | null;
           assigned_worker_id?: string | null;
           category?: string;
           completed_at?: string | null;
+          completion_notes?: string | null;
           created_at?: string;
           description?: string | null;
           estimated_cost?: number | null;
+          estimated_time?: string | null;
           id?: string;
           landlord_notes?: string | null;
           photos?: string[] | null;
@@ -77,6 +91,7 @@ export type Database = {
           preferred_time_slots?: string[] | null;
           priority?: string;
           quick_fixes?: string[] | null;
+          quote_description?: string | null;
           room?: string | null;
           status?: string;
           subcategory?: string | null;

@@ -15,7 +15,11 @@ export const getFavoriteWorkers = async (): Promise<Tables<'workers'>[]> => {
 };
 
 export const getWorkersByCategory = async (categoryId: string): Promise<Tables<'workers'>[]> => {
-  const { data, error } = await supabase.from('workers').select('*').eq('category', categoryId);
+  const { data, error } = await supabase
+    .from('workers')
+    .select('*')
+    .eq('category', categoryId); // Back to exact match first
+    
   if (error) throw error;
   return data || [];
 };

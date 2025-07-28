@@ -33,6 +33,9 @@ import {
   UserCheck,
   Star,
   Award,
+  X,
+  DollarSign,
+  Clock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +47,7 @@ interface AgentMaintenanceDetailProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdate: () => void;
+  activeTab?: string;
 }
 
 const priorities = [
@@ -58,6 +62,7 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
   open,
   onOpenChange,
   onUpdate,
+  activeTab,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +70,14 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
   const [assignedWorker, setAssignedWorker] = useState(null);
   const [showWorkerSelection, setShowWorkerSelection] = useState(false);
   const [availableWorkers, setAvailableWorkers] = useState([]);
+  const [landlordInfo, setLandlordInfo] = useState(null);
+  const [showQuoteDialog, setShowQuoteDialog] = useState(false);
+  const [quoteData, setQuoteData] = useState({
+    estimatedCost: "",
+    estimatedTime: "",
+    description: "",
+  });
+  const [submittedQuote, setSubmittedQuote] = useState(null); // Store submitted quote details
   const [workerRatings, setWorkerRatings] = useState([]);
   const [agentRating, setAgentRating] = useState<any>(null);
   const [isAgentRatingDialogOpen, setIsAgentRatingDialogOpen] = useState(false);
@@ -78,6 +91,172 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
     agent_notes: "",
   });
   const { toast } = useToast();
+
+  // Helper functions for badge styling
+  const getPriorityBadgeConfig = (priority: string) => {
+    switch (priority) {
+      case "urgent":
+        return {
+          variant: "destructive" as const,
+          className: "bg-red-500 text-white border-red-500",
+        };
+      case "high":
+        return {
+          variant: "destructive" as const,
+          className: "bg-orange-500 text-white border-orange-500",
+        };
+      case "medium":
+        return {
+          variant: "secondary" as const,
+          className: "bg-blue-500 text-white border-blue-500",
+        };
+      case "low":
+        return {
+          variant: "outline" as const,
+          className: "bg-green-500 text-white border-green-500",
+        };
+      default:
+        return {
+          variant: "secondary" as const,
+          className: "bg-gray-500 text-white border-gray-500",
+        };
+    }
+  };
+
+  const getStatusBadgeConfig = (status: string) => {
+    switch (status) {
+      case "completed":
+        return {
+          variant: "default" as const,
+          className: "bg-green-600 text-white border-green-600",
+        };
+      case "in_process":
+        return {
+          variant: "secondary" as const,
+          className: "bg-blue-500 text-white border-blue-500",
+        };
+      case "pending":
+        return {
+          variant: "outline" as const,
+          className: "bg-yellow-100 text-yellow-700 border-yellow-300",
+        };
+      case "cancelled":
+        return {
+          variant: "destructive" as const,
+          className: "bg-red-500 text-white border-red-500",
+        };
+      default:
+        return {
+          variant: "secondary" as const,
+          className: "bg-gray-500 text-white border-gray-500",
+        };
+    }
+  };
+
+  // Dynamic AI predictions based on category
+  const getAIPrediction = (category: string, priority: string) => {
+    const predictions = {
+      plumbing: {
+        cost:
+          priority === "urgent"
+            ? "400-800"
+            : priority === "high"
+            ? "250-500"
+            : "150-350",
+        time:
+          priority === "urgent"
+            ? "2-6 hours"
+            : priority === "high"
+            ? "4-8 hours"
+            : "2-4 hours",
+        description:
+          "Based on plumbing issue analysis, typical repair costs include parts and labor.",
+      },
+      electrical: {
+        cost:
+          priority === "urgent"
+            ? "300-700"
+            : priority === "high"
+            ? "200-450"
+            : "100-300",
+        time:
+          priority === "urgent"
+            ? "1-4 hours"
+            : priority === "high"
+            ? "2-6 hours"
+            : "1-3 hours",
+        description:
+          "Electrical work requires certified electrician and safety compliance checks.",
+      },
+      heating: {
+        cost:
+          priority === "urgent"
+            ? "500-1200"
+            : priority === "high"
+            ? "300-800"
+            : "200-600",
+        time:
+          priority === "urgent"
+            ? "3-8 hours"
+            : priority === "high"
+            ? "4-12 hours"
+            : "2-6 hours",
+        description:
+          "Heating system repairs may require boiler service or component replacement.",
+      },
+      "windows-doors": {
+        cost:
+          priority === "urgent"
+            ? "200-600"
+            : priority === "high"
+            ? "150-400"
+            : "100-250",
+        time:
+          priority === "urgent"
+            ? "2-4 hours"
+            : priority === "high"
+            ? "2-6 hours"
+            : "1-3 hours",
+        description:
+          "Window and door repairs include hardware, glass, or frame adjustments.",
+      },
+      appliances: {
+        cost:
+          priority === "urgent"
+            ? "350-900"
+            : priority === "high"
+            ? "200-600"
+            : "100-400",
+        time:
+          priority === "urgent"
+            ? "1-3 hours"
+            : priority === "high"
+            ? "2-4 hours"
+            : "1-2 hours",
+        description:
+          "Appliance repair costs vary by brand, age, and replacement parts availability.",
+      },
+      general: {
+        cost:
+          priority === "urgent"
+            ? "250-600"
+            : priority === "high"
+            ? "150-400"
+            : "80-250",
+        time:
+          priority === "urgent"
+            ? "2-5 hours"
+            : priority === "high"
+            ? "2-6 hours"
+            : "1-4 hours",
+        description:
+          "General maintenance covers various repair types with standard labor rates.",
+      },
+    };
+
+    const normalizedCategory = category.toLowerCase().replace(/[\s\/]/g, "-");
+    return predictions[normalizedCategory] || predictions["general"];
+  };
   const { user } = useAuth();
 
   React.useEffect(() => {
@@ -91,6 +270,11 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
         actual_cost: issue.actual_cost || "",
         agent_notes: issue.agent_notes || "",
       });
+
+      // Reset submitted quote when issue changes
+      if (!issue.estimated_cost) {
+        setSubmittedQuote(null);
+      }
 
       // Fetch assigned worker details
       fetchWorkerDetails();
@@ -148,6 +332,32 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
     }
   };
 
+  // Fetch landlord information
+  const fetchLandlordInfo = async () => {
+    if (issue.landlord_id) {
+      try {
+        const { data: landlord, error } = await supabase
+          .from("profiles")
+          .select("id, name, username, phone")
+          .eq("id", issue.landlord_id)
+          .single();
+
+        if (!error && landlord) {
+          setLandlordInfo(landlord);
+        }
+      } catch (error) {
+        console.error("Error fetching landlord details:", error);
+      }
+    } else {
+      // If no landlord_id, create mock landlord data
+      setLandlordInfo({
+        name: "John Smith",
+        username: "johnsmith",
+        phone: "+44 7800 654321",
+      });
+    }
+  };
+
   const fetchAgentRating = async () => {
     if (!user || !issue.id || !issue.assigned_worker_id) return;
 
@@ -175,6 +385,7 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
     fetchAgentRating(); // Refresh the agent rating
     if (assignedWorker && issue.assigned_worker_id) {
       fetchWorkerDetails(issue.assigned_worker_id);
+      fetchLandlordInfo();
     }
     // Also refresh all ratings to see the updated list
     if (issue.assigned_worker_id && issue.status === "completed") {
@@ -384,6 +595,109 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
     }
   };
 
+  const handleSubmitQuote = async () => {
+    try {
+      if (!issue?.id) {
+        console.error("No issue ID found");
+        toast({
+          title: "Error",
+          description: "Issue ID not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!quoteData.estimatedCost) {
+        console.error("No estimated cost provided");
+        toast({
+          title: "Error",
+          description: "Please enter an estimated cost",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const estimatedCostNum = parseFloat(quoteData.estimatedCost);
+      if (isNaN(estimatedCostNum) || estimatedCostNum <= 0) {
+        console.error("Invalid estimated cost:", quoteData.estimatedCost);
+        toast({
+          title: "Error",
+          description: "Please enter a valid estimated cost greater than 0",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log("Submitting quote:", {
+        id: issue.id,
+        estimatedCost: quoteData.estimatedCost,
+        estimatedCostParsed: estimatedCostNum,
+        estimatedTime: quoteData.estimatedTime,
+        description: quoteData.description,
+      });
+
+      // Prepare update object with only fields that exist in DB
+      const updateData: any = {
+        estimated_cost: estimatedCostNum,
+        status: "pending_approval",
+      };
+
+      // Don't add optional fields that might not exist in database
+      // If you want to store estimated_time and quote_description,
+      // you'll need to run the database migration first
+
+      console.log("Update data to be sent:", updateData);
+
+      const { error } = await supabase
+        .from("maintenance_requests")
+        .update(updateData)
+        .eq("id", issue.id);
+
+      if (error) {
+        console.error("Database error details:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        toast({
+          title: "Database Error",
+          description: `Failed to submit quote: ${error.message}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log("Quote submitted successfully to database");
+
+      // Store the submitted quote details locally
+      setSubmittedQuote({
+        estimatedCost: estimatedCostNum,
+        estimatedTime: quoteData.estimatedTime,
+        description: quoteData.description,
+        submittedAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: "Quote Submitted",
+        description: "Quote has been submitted for landlord approval.",
+      });
+
+      setShowQuoteDialog(false);
+      setQuoteData({ estimatedCost: "", estimatedTime: "", description: "" });
+      onUpdate();
+    } catch (error) {
+      console.error("Unexpected error submitting quote:", error);
+      toast({
+        title: "Error",
+        description: `Failed to submit quote: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!issue) return null;
 
   return (
@@ -578,6 +892,24 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {/* Landlord Information */}
+                  {landlordInfo && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Landlord:
+                      </label>
+                      <p className="font-medium">{landlordInfo.name}</p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                        <Phone className="w-4 h-4" />
+                        <span>{landlordInfo.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Mail className="w-4 h-4" />
+                        <span>{landlordInfo.username}@propertycare.app</span>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">
@@ -866,53 +1198,336 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
               </div>
 
               {/* Worker Quote & Approval */}
-              {issue.assigned_worker_id && (
+              {((issue.assigned_worker_id && issue.estimated_cost) ||
+                submittedQuote) && (
                 <div>
                   <h3 className="text-lg font-semibold mb-4">
-                    Worker Quote & Approval
+                    Worker Quote & Approval Status
                   </h3>
 
-                  <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-                    <CardContent className="p-4">
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-green-700 mb-1">
-                              Worker Quote - Cost
-                            </p>
-                            <p className="text-xl font-bold text-green-900">
-                              £{issue.actual_cost || "75.00"}
-                            </p>
+                  {/* Approved Quote - Work in Progress */}
+                  {issue.status === "in_process" && (
+                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                      <CardContent className="p-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-green-700 mb-1">
+                                Approved Cost
+                              </p>
+                              <p className="text-xl font-bold text-green-900">
+                                £
+                                {issue.estimated_cost ||
+                                  submittedQuote?.estimatedCost}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-green-700 mb-1">
+                                Estimated Time
+                              </p>
+                              <p className="text-xl font-bold text-green-900">
+                                {issue.estimated_time ||
+                                  submittedQuote?.estimatedTime ||
+                                  "Not specified"}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm text-green-700 mb-1">
-                              Worker Quote - Time
-                            </p>
-                            <p className="text-xl font-bold text-green-900">
-                              45 min
-                            </p>
-                          </div>
-                        </div>
 
-                        <div className="bg-green-100 border border-green-300 rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-green-800">
-                              Landlord Approval:
-                            </span>
-                            <Badge variant="default" className="bg-green-600">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Approved
-                            </Badge>
+                          {(issue.quote_description ||
+                            submittedQuote?.description) && (
+                            <div className="bg-green-100 border border-green-300 rounded-lg p-3">
+                              <p className="text-sm font-medium text-green-800 mb-1">
+                                Work Description:
+                              </p>
+                              <p className="text-sm text-green-700">
+                                {issue.quote_description ||
+                                  submittedQuote?.description}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="bg-green-100 border border-green-300 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-800">
+                                Status:
+                              </span>
+                              <Badge variant="default" className="bg-green-600">
+                                <UserCheck className="w-3 h-3 mr-1" />
+                                Approved - Work in Progress
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-green-600">
+                              Quote approved by landlord. Work can now begin.
+                            </p>
                           </div>
-                          <p className="text-xs text-green-600">
-                            Approved 30 minutes ago
-                          </p>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Rejected Quote */}
+                  {issue.status === "rejected" && (
+                    <Card className="bg-gradient-to-br from-red-50 to-rose-50 border-red-200">
+                      <CardContent className="p-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-red-700 mb-1">
+                                Rejected Cost
+                              </p>
+                              <p className="text-xl font-bold text-red-900 line-through">
+                                £
+                                {issue.estimated_cost ||
+                                  submittedQuote?.estimatedCost}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-red-700 mb-1">
+                                Estimated Time
+                              </p>
+                              <p className="text-xl font-bold text-red-900 line-through">
+                                {issue.estimated_time ||
+                                  submittedQuote?.estimatedTime ||
+                                  "Not specified"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {(issue.quote_description ||
+                            submittedQuote?.description) && (
+                            <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+                              <p className="text-sm font-medium text-red-800 mb-1">
+                                Original Work Description:
+                              </p>
+                              <p className="text-sm text-red-700">
+                                {issue.quote_description ||
+                                  submittedQuote?.description}
+                              </p>
+                            </div>
+                          )}
+
+                          {issue.landlord_notes && (
+                            <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+                              <p className="text-sm font-medium text-red-800 mb-1">
+                                Rejection Reason:
+                              </p>
+                              <p className="text-sm text-red-700">
+                                {issue.landlord_notes}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <X className="w-4 h-4 text-red-600" />
+                              <span className="text-sm font-medium text-red-800">
+                                Status:
+                              </span>
+                              <Badge
+                                variant="destructive"
+                                className="bg-red-600"
+                              >
+                                <X className="w-3 h-3 mr-1" />
+                                Quote Rejected
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-red-600">
+                              Quote was rejected by landlord. Please submit a
+                              revised quote.
+                            </p>
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              variant="default"
+                              onClick={() => setShowQuoteDialog(true)}
+                              className="bg-purple-600 hover:bg-purple-700 text-white flex-1"
+                            >
+                              <DollarSign className="w-4 h-4 mr-2" />
+                              Submit Revised Quote
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Completed Work */}
+                  {issue.status === "completed" && (
+                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                      <CardContent className="p-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-green-700 mb-1">
+                                Final Cost
+                              </p>
+                              <p className="text-xl font-bold text-green-900">
+                                £
+                                {issue.actual_cost ||
+                                  issue.estimated_cost ||
+                                  submittedQuote?.estimatedCost}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-green-700 mb-1">
+                                Completed On
+                              </p>
+                              <p className="text-lg font-bold text-green-900">
+                                {issue.completed_at
+                                  ? new Date(
+                                      issue.completed_at
+                                    ).toLocaleDateString()
+                                  : "Recently"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {(issue.quote_description ||
+                            submittedQuote?.description) && (
+                            <div className="bg-green-100 border border-green-300 rounded-lg p-3">
+                              <p className="text-sm font-medium text-green-800 mb-1">
+                                Work Completed:
+                              </p>
+                              <p className="text-sm text-green-700">
+                                {issue.quote_description ||
+                                  submittedQuote?.description}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="bg-green-100 border border-green-300 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-800">
+                                Status:
+                              </span>
+                              <Badge variant="default" className="bg-green-600">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Work Completed
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-green-600">
+                              Maintenance work has been completed successfully.
+                              Invoice has been generated.
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Pending Approval */}
+                  {issue.status === "pending_approval" && (
+                    <Card className="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200">
+                      <CardContent className="p-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-orange-700 mb-1">
+                                Estimated Cost
+                              </p>
+                              <p className="text-xl font-bold text-orange-900">
+                                £
+                                {issue.estimated_cost ||
+                                  submittedQuote?.estimatedCost}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-orange-700 mb-1">
+                                Estimated Time
+                              </p>
+                              <p className="text-xl font-bold text-orange-900">
+                                {issue.estimated_time ||
+                                  submittedQuote?.estimatedTime ||
+                                  "Not specified"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {(issue.quote_description ||
+                            submittedQuote?.description) && (
+                            <div className="bg-orange-100 border border-orange-300 rounded-lg p-3">
+                              <p className="text-sm font-medium text-orange-800 mb-1">
+                                Work Description:
+                              </p>
+                              <p className="text-sm text-orange-700">
+                                {issue.quote_description ||
+                                  submittedQuote?.description}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="bg-orange-100 border border-orange-300 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="w-4 h-4 text-orange-600" />
+                              <span className="text-sm font-medium text-orange-800">
+                                Status:
+                              </span>
+                              <Badge
+                                variant="default"
+                                className="bg-orange-600"
+                              >
+                                <Clock className="w-3 h-3 mr-1" />
+                                Waiting for Landlord Approval
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-orange-600">
+                              Quote submitted and waiting for landlord approval.
+                              You will be notified once reviewed.
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               )}
+
+              {/* Worker Assigned - Waiting for Quote */}
+              {issue.assigned_worker_id &&
+                !issue.estimated_cost &&
+                !submittedQuote && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">
+                      Worker Status
+                    </h3>
+
+                    <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                              <Clock className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-amber-900">
+                                Waiting for Worker Quote
+                              </h4>
+                              <p className="text-sm text-amber-700">
+                                Worker has been assigned and is preparing the
+                                quote
+                              </p>
+                            </div>
+                          </div>
+                          {issue.status !== "completed" &&
+                            activeTab !== "all-agency" &&
+                            activeTab !== "unassigned" && (
+                              <Button
+                                variant="default"
+                                onClick={() => setShowQuoteDialog(true)}
+                                className="bg-purple-600 hover:bg-purple-700 text-white"
+                              >
+                                <DollarSign className="w-4 h-4 mr-2" />
+                                Submit Quote
+                              </Button>
+                            )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
               {/* Timeline Events */}
               <div>
