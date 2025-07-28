@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { 
   Calendar,
@@ -67,8 +68,9 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
+import { AgentMaintenanceDetail } from '@/components/pages/agent/AgentMaintenanceDetail';
 import { getAllWorkers, getFavoriteWorkers, getWorkersByCategory, getWorkerById, deleteWorker } from '@/data/workers';
+import { ErrorBoundary } from 'react-error-boundary';
 
 // Issue categories mapping to match database
 const issueCategories = {
@@ -129,23 +131,82 @@ const issueCategories = {
   }
 };
 
+// Create an error fallback component
+const ErrorFallback = ({ error, resetErrorBoundary }) => {
+  return (
+    <div className="p-4 rounded-md bg-red-50 border border-red-200">
+      <h2 className="text-lg font-semibold text-red-800">Something went wrong:</h2>
+      <p className="text-sm text-red-600">{error.message}</p>
+      <Button
+        onClick={resetErrorBoundary}
+        className="mt-4 bg-red-600 hover:bg-red-700 text-white"
+      >
+        Try again
+      </Button>
+    </div>
+  );
+};
+
+// Wrap your component with ErrorBoundary
 export const AgentDashboard = () => {
+  return (
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onReset={() => {
+        // Reset the state when the error boundary is reset
+        window.location.reload();
+      }}
+    >
+      <AgentDashboardContent />
+    </ErrorBoundary>
+  );
+};
+
+// Move your existing component code here
+const AgentDashboardContent = () => {
+  // Add null checks for initial state
+  const [tickets, setTickets] = useState([]);
+  const [workers, setWorkers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [selectedTicketForAssign, setSelectedTicketForAssign] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedTicket, setSelectedTicket] = useState(null);
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [selectedTicketForAssign, setSelectedTicketForAssign] = useState(null);
-  const [workers, setWorkers] = useState([]);
-  const [activeTab, setActiveTab] = useState("unassigned");
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [completionData, setCompletionData] = useState({
+    actualCost: '',
+    agentNotes: '',
+    selectedTicketId: null
+  });
+  const [activeTab, setActiveTab] = useState('unassigned');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editData, setEditData] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchMaintenanceRequests();
-    fetchWorkers(); // Add this line
+    const init = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([
+          fetchMaintenanceRequests(),
+          fetchWorkers()
+        ]);
+      } catch (error) {
+        console.error('Error initializing dashboard:', error);
+        toast({
+          title: "Error",
+          description: "Failed to initialize dashboard",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    init();
   }, []);
 
   const fetchMaintenanceRequests = async () => {
@@ -363,41 +424,6 @@ export const AgentDashboard = () => {
     }
   };
 
-  const handleReassignWorker = async (ticketId: string) => {
-    try {
-      // First, clear the current worker assignment
-      const { error } = await supabase
-        .from('maintenance_requests')
-        .update({ 
-          assigned_worker_id: null,
-          status: 'claimed' // Reset status to claimed
-        })
-        .eq('id', ticketId);
-
-      if (error) throw error;
-
-      // Then open the assign modal to select new worker
-      const ticket = tickets.find(t => t.id === ticketId);
-      if (ticket) {
-        openAssignModal(ticket);
-      }
-
-      toast({
-        title: "Worker Unassigned",
-        description: "Please select a new worker to assign",
-      });
-      
-      await fetchMaintenanceRequests();
-    } catch (error) {
-      console.error('Error reassigning worker:', error);
-      toast({
-        title: "Error",
-        description: "Failed to reassign worker",
-        variant: "destructive",
-      });
-    }
-  };
-
   const openAssignModal = async (ticket: any) => {
     try {
       setSelectedTicketForAssign(ticket);
@@ -429,6 +455,48 @@ export const AgentDashboard = () => {
     }
   };
 
+  const handleCompleteTicket = async (ticketId: string) => {
+    setCompletionData({
+      actualCost: '',
+      agentNotes: '',
+      selectedTicketId: ticketId
+    });
+    setCompletionModalOpen(true);
+  };
+
+  const handleSubmitCompletion = async () => {
+    try {
+      if (!completionData.selectedTicketId) return;
+
+      const { error } = await supabase
+        .from('maintenance_requests')
+        .update({ 
+          status: 'completed',
+          actual_cost: parseFloat(completionData.actualCost),
+          agent_notes: completionData.agentNotes,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', completionData.selectedTicketId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Ticket Completed",
+        description: "The maintenance request has been marked as completed.",
+      });
+      
+      setCompletionModalOpen(false);
+      await fetchMaintenanceRequests();
+    } catch (error) {
+      console.error('Error completing ticket:', error);
+      toast({
+        title: "Error",
+        description: "Failed to complete the ticket",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Helper functions to filter tickets
   const getUnassignedTickets = () => tickets.filter(ticket => 
     ticket.status === 'submitted' || ticket.status === 'open'
@@ -439,6 +507,13 @@ export const AgentDashboard = () => {
   );
 
   const getAllTickets = () => tickets;
+
+  const getCompletedTickets = () => tickets.filter(ticket => ticket.status === 'completed');
+
+  // Get completed tickets with actual costs for invoicing
+  const getInvoiceTickets = () => tickets.filter(ticket => 
+    ticket.status === 'completed' && ticket.actual_cost && ticket.actual_cost > 0
+  );
 
   // Filter tickets based on search and filters
   const filteredTickets = (ticketList) => {
@@ -455,144 +530,301 @@ export const AgentDashboard = () => {
     });
   };
 
-  const renderTicketTable = (ticketList, isAllAgencyTab = false) => (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Category</TableHead>
-          <TableHead>Tenant Name</TableHead>
-          <TableHead>Tenant Number</TableHead>
-          <TableHead>Property Address</TableHead>
-          <TableHead>Priority</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Assigned Worker</TableHead>
-          {isAllAgencyTab && <TableHead>Claimed By</TableHead>}
-          <TableHead>Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {filteredTickets(ticketList).map((ticket) => (
-          <TableRow key={ticket.id}>
-            <TableCell>
-              <div className="flex items-center space-x-2">
-                <div className={`p-2 rounded-lg ${issueCategories[ticket.category]?.bg || 'bg-muted'}`}>
-                  {React.createElement(issueCategories[ticket.category]?.icon || Wrench, {
-                    className: `h-4 w-4 ${issueCategories[ticket.category]?.color || 'text-muted-foreground'}`
-                  })}
-                </div>
-                <div>
-                  <p className="font-medium text-sm">{ticket.title}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{ticket.category}</p>
-                </div>
-              </div>
-            </TableCell>
-            <TableCell>
-              <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
-            </TableCell>
-            <TableCell>
-              <p className="text-sm">{ticket.tenant_profile?.username || 'N/A'}</p>
-            </TableCell>
-            <TableCell>
-              <p className="text-sm">{ticket.property_address || 'Property Address Not Available'}</p>
-            </TableCell>
-            <TableCell>
-              <Badge variant={ticket.priority === 'urgent' ? 'destructive' : 
-                            ticket.priority === 'high' ? 'destructive' : 
-                            ticket.priority === 'medium' ? 'default' : 'secondary'}>
-                {ticket.priority}
-              </Badge>
-            </TableCell>
-            <TableCell>
-              <div className="flex items-center space-x-1">
-                {ticket.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
-                {ticket.status === 'in_process' && <Clock className="h-4 w-4 text-blue-500" />}
-                {ticket.status === 'claimed' && <User className="h-4 w-4 text-yellow-500" />}
-                {(ticket.status === 'submitted' || ticket.status === 'open') && <AlertTriangle className="h-4 w-4 text-red-500" />}
-                <span className={`text-sm capitalize ${
-                  ticket.status === 'completed' ? 'text-green-700' :
-                  ticket.status === 'in_process' ? 'text-blue-700' :
-                  ticket.status === 'claimed' ? 'text-yellow-700' :
-                  'text-red-700'
-                }`}>
-                  {ticket.status === 'in_process' ? 'In Process' : 
-                   ticket.status === 'submitted' ? 'Open' : 
-                   ticket.status}
-                </span>
-              </div>
-            </TableCell>
-            <TableCell>
-              <p className="text-sm">
-                {ticket.assigned_worker_id
-                  ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || ticket.assigned_worker_id
-                  : 'Unassigned'}
-              </p>
-            </TableCell>
-            {isAllAgencyTab && (
+  const renderTicketTable = (ticketList, isAllAgencyTab = false) => {
+    if (!ticketList) return null;
+    
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Category</TableHead>
+            <TableHead>Tenant Name</TableHead>
+            <TableHead>Tenant Number</TableHead>
+            <TableHead>Property Address</TableHead>
+            <TableHead>Priority</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Assigned Worker</TableHead>
+            {isAllAgencyTab && <TableHead>Claimed By</TableHead>}
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filteredTickets(ticketList).map((ticket) => (
+            <TableRow key={ticket.id}>
               <TableCell>
-                <p className="text-sm">{ticket.agent_notes === 'current_agent' ? 'You' : ticket.agent_notes || 'Not claimed'}</p>
+                <div className="flex items-center space-x-2">
+                  <div className={`p-2 rounded-lg ${issueCategories[ticket.category]?.bg || 'bg-muted'}`}>
+                    {React.createElement(issueCategories[ticket.category]?.icon || Wrench, {
+                      className: `h-4 w-4 ${issueCategories[ticket.category]?.color || 'text-muted-foreground'}`
+                    })}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{ticket.title}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{ticket.category}</p>
+                  </div>
+                </div>
               </TableCell>
-            )}
-            <TableCell>
-              <div className="flex space-x-1">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setSelectedTicket(ticket)}
-                >
-                  <Eye className="w-4 h-4 mr-1" />
-                  View Details
-                </Button>
-                {!isAllAgencyTab && (
-                  <>
-                    {(ticket.status === 'submitted' || ticket.status === 'open') && !ticket.agent_notes && (
-                      <Button 
-                        type="button"
-                        size="sm"
-                        onClick={() => handleClaimTicket(ticket.id)}
-                        className="bg-agent hover:bg-agent-secondary text-white"
-                      >
-                        Claim
-                      </Button>
-                    )}
-                    {ticket.status === 'claimed' && ticket.agent_notes === 'current_agent' && !ticket.assigned_worker_id && (
-                      <div className="flex flex-col gap-1">
+              <TableCell>
+                <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">{ticket.tenant_profile?.username || 'N/A'}</p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">{ticket.property_address || 'Property Address Not Available'}</p>
+              </TableCell>
+              <TableCell>
+                <Badge variant={ticket.priority === 'urgent' ? 'destructive' : 
+                              ticket.priority === 'high' ? 'destructive' : 
+                              ticket.priority === 'medium' ? 'default' : 'secondary'}>
+                  {ticket.priority}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center space-x-1">
+                  {ticket.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
+                  {ticket.status === 'in_process' && <Clock className="h-4 w-4 text-blue-500" />}
+                  {ticket.status === 'claimed' && <User className="h-4 w-4 text-yellow-500" />}
+                  {(ticket.status === 'submitted' || ticket.status === 'open') && <AlertTriangle className="h-4 w-4 text-red-500" />}
+                  <span className={`text-sm capitalize ${
+                    ticket.status === 'completed' ? 'text-green-700' :
+                    ticket.status === 'in_process' ? 'text-blue-700' :
+                    ticket.status === 'claimed' ? 'text-yellow-700' :
+                    'text-red-700'
+                  }`}>
+                    {ticket.status === 'in_process' ? 'In Process' : 
+                     ticket.status === 'submitted' ? 'Open' : 
+                     ticket.status}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">
+                  {ticket.assigned_worker_id
+                    ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || ticket.assigned_worker_id
+                    : 'Unassigned'}
+                </p>
+              </TableCell>
+              {isAllAgencyTab && (
+                <TableCell>
+                  <p className="text-sm">{ticket.agent_notes === 'current_agent' ? 'You' : ticket.agent_notes || 'Not claimed'}</p>
+                </TableCell>
+              )}
+              <TableCell>
+                <div className="flex space-x-1">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setSelectedTicket(ticket)}
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    View Details
+                  </Button>
+                  {!isAllAgencyTab && (
+                    <>
+                      {(ticket.status === 'submitted' || ticket.status === 'open') && !ticket.agent_notes && (
                         <Button 
                           type="button"
                           size="sm"
-                          onClick={() => handleQuickAssign(ticket.id)}
+                          onClick={() => handleClaimTicket(ticket.id)}
+                          className="bg-agent hover:bg-agent-secondary text-white"
+                        >
+                          Claim
+                        </Button>
+                      )}
+                      {ticket.status === 'claimed' && ticket.agent_notes === 'current_agent' && !ticket.assigned_worker_id && (
+                        <div className="flex flex-col gap-1">
+                          <Button 
+                            type="button"
+                            size="sm"
+                            onClick={() => handleQuickAssign(ticket.id)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Quick Assign
+                          </Button>
+                          <Button 
+                            type="button"
+                            size="sm"
+                            onClick={() => openAssignModal(ticket)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            Assign
+                          </Button>
+                        </div>
+                      )}
+
+                      {ticket.status === 'in_process' && (
+                        <Button 
+                          type="button"
+                          size="sm"
+                          onClick={() => handleCompleteTicket(ticket.id)}
                           className="bg-green-600 hover:bg-green-700 text-white"
                         >
-                          Quick Assign
+                          Complete
                         </Button>
-                        <Button 
-                          type="button"
-                          size="sm"
-                          onClick={() => openAssignModal(ticket)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          Assign
-                        </Button>
-                      </div>
-                    )}
-                    {ticket.assigned_worker_id && (
-                      <Button 
-                        type="button"
-                        size="sm"
-                        onClick={() => handleReassignWorker(ticket.id)}
-                        className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                      >
-                        Reassign
-                      </Button>
-                    )}
-                  </>
-                )}
-              </div>
-            </TableCell>
+                      )}
+                    </>
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
+
+  const renderInvoiceTable = (ticketList) => {
+    if (!ticketList) return null;
+    
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Invoice #</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Tenant Name</TableHead>
+            <TableHead>Property Address</TableHead>
+            <TableHead>Completed Date</TableHead>
+            <TableHead>Assigned Worker</TableHead>
+            <TableHead>Estimated Cost</TableHead>
+            <TableHead>Actual Cost</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Actions</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
+        </TableHeader>
+        <TableBody>
+          {filteredTickets(ticketList).map((ticket) => (
+            <TableRow key={ticket.id}>
+              <TableCell>
+                <p className="font-medium text-sm">INV-{ticket.id?.slice(-8) || '12345678'}</p>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center space-x-2">
+                  <div className={`p-2 rounded-lg ${issueCategories[ticket.category]?.bg || 'bg-muted'}`}>
+                    {React.createElement(issueCategories[ticket.category]?.icon || Wrench, {
+                      className: `h-4 w-4 ${issueCategories[ticket.category]?.color || 'text-muted-foreground'}`
+                    })}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{ticket.title}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{ticket.category}</p>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">{ticket.property_address || 'Property Address Not Available'}</p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">
+                  {ticket.completed_at 
+                    ? new Date(ticket.completed_at).toLocaleDateString()
+                    : 'N/A'}
+                </p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">
+                  {ticket.assigned_worker_id
+                    ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || ticket.assigned_worker_id
+                    : 'Unassigned'}
+                </p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm font-medium">
+                  £{ticket.estimated_cost ? ticket.estimated_cost.toFixed(2) : '0.00'}
+                </p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm font-bold text-green-600">
+                  £{ticket.actual_cost ? ticket.actual_cost.toFixed(2) : '0.00'}
+                </p>
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  Completed
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex space-x-1">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setSelectedTicket(ticket)}
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    View Details
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="default"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => {
+                      // Generate and download invoice
+                      const invoiceData = {
+                        invoiceNumber: `INV-${ticket.id?.slice(-8) || '12345678'}`,
+                        tenant: ticket.tenant_profile?.name || 'Unknown',
+                        property: ticket.property_address || 'Property Address Not Available',
+                        completedDate: ticket.completed_at ? new Date(ticket.completed_at).toLocaleDateString() : 'N/A',
+                        worker: ticket.assigned_worker_id ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || ticket.assigned_worker_id : 'Unassigned',
+                        category: ticket.category,
+                        title: ticket.title,
+                        estimatedCost: ticket.estimated_cost || 0,
+                        actualCost: ticket.actual_cost || 0
+                      };
+                      
+                      // Simple invoice generation (you can enhance this with a proper PDF library)
+                      const invoiceContent = `
+INVOICE
+
+Invoice Number: ${invoiceData.invoiceNumber}
+Date: ${new Date().toLocaleDateString()}
+
+Bill To:
+${invoiceData.tenant}
+${invoiceData.property}
+
+Work Completed:
+Category: ${invoiceData.category}
+Description: ${invoiceData.title}
+Completed Date: ${invoiceData.completedDate}
+Worker: ${invoiceData.worker}
+
+Costs:
+Estimated Cost: £${invoiceData.estimatedCost.toFixed(2)}
+Actual Cost: £${invoiceData.actualCost.toFixed(2)}
+
+Total Amount: £${invoiceData.actualCost.toFixed(2)}
+                      `;
+                      
+                      // Create and download text file (you can replace this with PDF generation)
+                      const element = document.createElement('a');
+                      const file = new Blob([invoiceContent], { type: 'text/plain' });
+                      element.href = URL.createObjectURL(file);
+                      element.download = `${invoiceData.invoiceNumber}.txt`;
+                      document.body.appendChild(element);
+                      element.click();
+                      document.body.removeChild(element);
+                      
+                      toast({
+                        title: "Invoice Generated",
+                        description: `Invoice ${invoiceData.invoiceNumber} has been generated and downloaded.`,
+                      });
+                    }}
+                  >
+                    <FileText className="w-4 h-4 mr-1" />
+                    Generate Invoice
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
 
   if (loading) {
     return (
@@ -630,7 +862,7 @@ export const AgentDashboard = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
@@ -683,14 +915,29 @@ export const AgentDashboard = () => {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <FileText className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-muted-foreground">Invoices</p>
+                <p className="text-2xl font-bold">{getInvoiceTickets().length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="unassigned">Unassigned Issues</TabsTrigger>
           <TabsTrigger value="my-issues">My Issues</TabsTrigger>
           <TabsTrigger value="all-agency">All Agency Issues</TabsTrigger>
+          <TabsTrigger value="completed">Completed Issues</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices</TabsTrigger>
         </TabsList>
 
         {/* Filters */}
@@ -780,11 +1027,43 @@ export const AgentDashboard = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="completed" className="space-y-4">
+          <Card>
+            <CardContent className="p-0">
+              {renderTicketTable(getCompletedTickets())}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="invoices" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Invoices
+              </CardTitle>
+              <CardDescription>
+                Generate and manage invoices for completed maintenance requests
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {getInvoiceTickets().length > 0 ? (
+                renderInvoiceTable(getInvoiceTickets())
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No completed tickets with costs available for invoicing</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Ticket Details Modal */}
       {selectedTicket && (
-        <MaintenanceDetail
+        <AgentMaintenanceDetail
           issue={selectedTicket}
           open={!!selectedTicket}
           onOpenChange={(open) => !open && setSelectedTicket(null)}
@@ -855,6 +1134,166 @@ export const AgentDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Ticket Completion Modal */}
+      <Dialog open={completionModalOpen} onOpenChange={setCompletionModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Complete Maintenance Request</DialogTitle>
+            <DialogDescription>
+              Enter the actual costs and any final notes before marking this request as completed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="actualCost" className="text-sm font-medium">
+                Actual Cost (£)
+              </label>
+              <Input
+                id="actualCost"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Enter actual cost"
+                value={completionData.actualCost}
+                onChange={(e) => setCompletionData({
+                  ...completionData,
+                  actualCost: e.target.value
+                })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="agentNotes" className="text-sm font-medium">
+                Completion Notes
+              </label>
+              <textarea
+                id="agentNotes"
+                className="w-full min-h-[100px] px-3 py-2 border rounded-md"
+                placeholder="Enter any final notes about the completed work..."
+                value={completionData.agentNotes}
+                onChange={(e) => setCompletionData({
+                  ...completionData,
+                  agentNotes: e.target.value
+                })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCompletionModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={handleSubmitCompletion}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Complete Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Issue Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Issue Details</DialogTitle>
+            <DialogDescription>
+              Update the details for this maintenance request.
+            </DialogDescription>
+          </DialogHeader>
+          {editData && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  const { error } = await supabase
+                    .from('maintenance_requests')
+                    .update({
+                      priority: editData.priority,
+                      category: editData.category,
+                      title: editData.title,
+                      description: editData.description,
+                    })
+                    .eq('id', editData.id);
+                  if (error) throw error;
+                  toast({ title: "Updated", description: "Issue updated successfully." });
+                  setEditModalOpen(false);
+                  await fetchMaintenanceRequests();
+                } catch (error) {
+                  toast({ title: "Error", description: "Failed to update issue.", variant: "destructive" });
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium mb-1">Title</label>
+                <Input
+                  value={editData.title}
+                  onChange={e => setEditData({ ...editData, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <textarea
+                  className="w-full min-h-[60px] px-3 py-2 border rounded-md"
+                  value={editData.description}
+                  onChange={e => setEditData({ ...editData, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Priority</label>
+                <Select value={editData.priority} onValueChange={val => setEditData({ ...editData, priority: val })}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Category</label>
+                <Select value={editData.category} onValueChange={val => setEditData({ ...editData, category: val })}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(issueCategories).map(cat => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditModalOpen(false)}>Cancel</Button>
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">Save Changes</Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Show predicted time if not completed, else show real completion time */}
+      {/*
+      <div className="progress-timeline">
+        <div className="ai-prediction">
+          <span className="font-semibold">Estimated Time</span>
+          <span className="text-lg">
+            {ticket.status !== 'completed'
+              ? (ticket.preferred_time_slots?.join(', ') || ticket.preferred_date || 'N/A')
+              : (ticket.completed_at
+                  ? `Completed at ${new Date(ticket.completed_at).toLocaleString()}`
+                  : 'Completed')}
+          </span>
+        </div>
+      </div>
+      */}
     </div>
   );
 };

@@ -21,6 +21,14 @@ export const getWorkersByCategory = async (categoryId: string): Promise<Tables<'
 };
 
 export const getWorkerById = async (workerId: string): Promise<Tables<'workers'> | null> => {
+  // Validate worker ID format (should be UUID)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  
+  if (!workerId || !uuidRegex.test(workerId)) {
+    console.warn('Invalid worker ID format:', workerId);
+    return null;
+  }
+  
   const { data, error } = await supabase.from('workers').select('*').eq('id', workerId).single();
   if (error && error.code !== 'PGRST116') throw error;
   return data || null;

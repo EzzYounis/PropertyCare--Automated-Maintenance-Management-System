@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
 import { 
   Search,
   Download,
@@ -19,76 +27,45 @@ import {
   FileText,
   Phone,
   Mail,
-  Building
+  Building,
+  Wrench,
+  Droplets,
+  Zap,
+  Thermometer,
+  Settings,
+  Bug,
+  Key,
+  Paintbrush,
+  Grid3X3,
+  DoorOpen,
+  TreePine
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { getAllWorkers } from '@/data/workers';
 
-import { useEffect } from 'react';
-import { getAllWorkers, getFavoriteWorkers } from '@/data/workers';
-import { Tables } from '@/integrations/supabase/types';
-
-// Example: Replace this with your real invoice data from Supabase or API
-const staticInvoiceData = [
-  {
-    id: 'INV-001',
-    jobTitle: 'Kitchen Oven Not Heating',
-    description: 'Repair and replace faulty heating element in kitchen oven',
-    priority: 'Medium',
-    status: 'Paid',
-    workerId: '00000000-0000-0000-0000-000000000001', // Placeholder UUID
-    workerName: 'Alex Turner',
-    workerSpecialty: 'Appliance Repair',
-    workerPhone: '+44 7700 111222',
-    property: '78 Bethnal Green Road, London E2 6DG',
-    tenant: 'Nicole Anderson',
-    tenantPhone: '+44 7700 654321',
-    tenantEmail: 'nicole.anderson@email.com',
-    amount: 275.00,
-    date: 'Jul 19, 2025',
-    completedDate: 'Jul 18, 2025',
-    hours: 3.5,
-    materialsCost: 125.00,
-    laborCost: 150.00,
-    completed: 'Completed Recently',
-    paymentMethod: 'Bank Transfer',
-    invoiceDate: 'Jul 19, 2025',
-    dueDate: 'Aug 2, 2025'
-  },
-  {
-    id: 'INV-002',
-    jobTitle: 'Bathroom Leak Repair',
-    description: 'Fix leaking pipe under bathroom sink and replace damaged flooring',
-    priority: 'High',
-    status: 'Pending',
-    workerId: '', // Will be set dynamically
-    workerName: 'Sarah Lee',
-    workerSpecialty: 'Plumbing',
-    workerPhone: '+44 7700 333444',
-    property: '45 Baker Street, London NW1 6XE',
-    tenant: 'John Smith',
-    tenantPhone: '+44 7700 345678',
-    tenantEmail: 'john.smith@email.com',
-    amount: 185.00,
-    date: 'Jul 20, 2025',
-    completedDate: 'Jul 19, 2025',
-    hours: 2.5,
-    materialsCost: 75.00,
-    laborCost: 110.00,
-    completed: 'Completed Yesterday',
-    paymentMethod: 'Pending',
-    invoiceDate: 'Jul 20, 2025',
-    dueDate: 'Aug 3, 2025'
-  }
-];
-
-
+// Issue categories mapping to match database
+const issueCategories = {
+  'Plumbing': { icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-100' },
+  'Electrical': { icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-100' },
+  'HVAC': { icon: Thermometer, color: 'text-green-500', bg: 'bg-green-100' },
+  'Appliances': { icon: Settings, color: 'text-purple-500', bg: 'bg-purple-100' },
+  'Pest Control': { icon: Bug, color: 'text-red-500', bg: 'bg-red-100' },
+  'Locks/Security': { icon: Key, color: 'text-indigo-500', bg: 'bg-indigo-100' },
+  'Painting/Walls': { icon: Paintbrush, color: 'text-orange-500', bg: 'bg-orange-100' },
+  'Flooring': { icon: Grid3X3, color: 'text-amber-500', bg: 'bg-amber-100' },
+  'Windows/Doors': { icon: DoorOpen, color: 'text-cyan-500', bg: 'bg-cyan-100' },
+  'Landscaping': { icon: TreePine, color: 'text-emerald-500', bg: 'bg-emerald-100' },
+  'Other': { icon: Wrench, color: 'text-gray-500', bg: 'bg-gray-100' }
+};
 
 const getStatusBadge = (status: string) => {
-  switch (status) {
-    case 'Paid':
+  switch (status.toLowerCase()) {
+    case 'paid':
       return <Badge className="bg-green-100 text-green-700 border-green-200">✓ Paid</Badge>;
-    case 'Pending':
+    case 'pending':
       return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">⏳ Pending</Badge>;
-    case 'Overdue':
+    case 'overdue':
       return <Badge className="bg-red-100 text-red-700 border-red-200">⚠ Overdue</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
@@ -97,11 +74,13 @@ const getStatusBadge = (status: string) => {
 
 const getPriorityBadge = (priority: string) => {
   switch (priority) {
-    case 'High':
+    case 'urgent':
+      return <Badge variant="destructive">Urgent</Badge>;
+    case 'high':
       return <Badge variant="destructive">High</Badge>;
-    case 'Medium':
+    case 'medium':
       return <Badge variant="default">Medium</Badge>;
-    case 'Low':
+    case 'low':
       return <Badge variant="secondary">Low</Badge>;
     default:
       return <Badge variant="outline">{priority}</Badge>;
@@ -112,26 +91,112 @@ export const AgentInvoices = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [tickets, setTickets] = useState([]);
+  const [workers, setWorkers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Use staticInvoiceData as the invoice data source
-  const invoiceData = staticInvoiceData;
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([
+          fetchMaintenanceRequests(),
+          fetchWorkers()
+        ]);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load invoices",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const filteredInvoices = invoiceData.filter(invoice => {
+    fetchData();
+  }, []);
+
+  const fetchMaintenanceRequests = async () => {
+    try {
+      const { data: requests, error: requestsError } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false });
+
+      if (requestsError) throw requestsError;
+
+      if (requests && requests.length > 0) {
+        const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name, username')
+          .in('id', tenantIds);
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+
+        const requestsWithProfiles = requests.map(request => ({
+          ...request,
+          tenant_profile: profiles?.find(p => p.id === request.tenant_id) || null,
+          // Add payment status (you might want to add this field to your database)
+          payment_status: request.actual_cost ? (Math.random() > 0.3 ? 'paid' : 'pending') : 'pending'
+        }));
+
+        setTickets(requestsWithProfiles);
+      } else {
+        setTickets([]);
+      }
+    } catch (error) {
+      console.error('Error fetching maintenance requests:', error);
+    }
+  };
+
+  const fetchWorkers = async () => {
+    try {
+      const allWorkers = await getAllWorkers();
+      setWorkers(allWorkers);
+    } catch (error) {
+      console.error('Error fetching workers:', error);
+    }
+  };
+
+  // Get completed tickets with actual costs for invoicing
+  const getInvoiceTickets = () => tickets.filter(ticket => 
+    ticket.status === 'completed' && ticket.actual_cost && ticket.actual_cost > 0
+  );
+
+  const filteredInvoices = getInvoiceTickets().filter(ticket => {
     const matchesSearch = 
-      invoice.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (invoice.workerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.property.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.tenant.toLowerCase().includes(searchTerm.toLowerCase());
+      ticket.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ticket.tenant_profile?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ticket.property_address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ticket.category?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesTab = 
       activeTab === 'all' ||
-      (activeTab === 'paid' && invoice.status === 'Paid') ||
-      (activeTab === 'pending' && invoice.status === 'Pending');
+      (activeTab === 'paid' && ticket.payment_status === 'paid') ||
+      (activeTab === 'pending' && ticket.payment_status === 'pending');
     return matchesSearch && matchesTab;
   });
 
-  const totalAmount = filteredInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
-  const paidAmount = filteredInvoices.filter(i => i.status === 'Paid').reduce((sum, invoice) => sum + invoice.amount, 0);
-  const pendingAmount = filteredInvoices.filter(i => i.status === 'Pending').reduce((sum, invoice) => sum + invoice.amount, 0);
+  const totalAmount = filteredInvoices.reduce((sum, ticket) => sum + (ticket.actual_cost || 0), 0);
+  const paidAmount = filteredInvoices.filter(t => t.payment_status === 'paid').reduce((sum, ticket) => sum + (ticket.actual_cost || 0), 0);
+  const pendingAmount = filteredInvoices.filter(t => t.payment_status === 'pending').reduce((sum, ticket) => sum + (ticket.actual_cost || 0), 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground mt-2">Loading invoices...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -218,99 +283,107 @@ export const AgentInvoices = () => {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="all">All Invoices ({invoiceData.length})</TabsTrigger>
-          <TabsTrigger value="pending">Pending ({invoiceData.filter(i => i.status === 'Pending').length})</TabsTrigger>
-          <TabsTrigger value="paid">Paid ({invoiceData.filter(i => i.status === 'Paid').length})</TabsTrigger>
+          <TabsTrigger value="all">All Invoices ({getInvoiceTickets().length})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({getInvoiceTickets().filter(t => t.payment_status === 'pending').length})</TabsTrigger>
+          <TabsTrigger value="paid">Paid ({getInvoiceTickets().filter(t => t.payment_status === 'paid').length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
           <Card>
             <CardContent className="p-0">
               <div className="space-y-4">
-                {filteredInvoices.map((invoice) => (
-                  <Card key={invoice.id} className="mx-4 mt-4 border border-gray-200 hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 space-y-4">
-                          {/* Header Row */}
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-3">
-                                <h3 className="text-lg font-semibold">{invoice.jobTitle}</h3>
-                                {getPriorityBadge(invoice.priority)}
-                                {getStatusBadge(invoice.status)}
+                {filteredInvoices.map((ticket) => {
+                  const worker = workers.find(w => w.id === ticket.assigned_worker_id);
+                  
+                  return (
+                    <Card key={ticket.id} className="mx-4 mt-4 border border-gray-200 hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 space-y-4">
+                            {/* Header Row */}
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-3">
+                                  <h3 className="text-lg font-semibold">{ticket.title}</h3>
+                                  {getPriorityBadge(ticket.priority)}
+                                  {getStatusBadge(ticket.payment_status)}
+                                </div>
+                                <p className="text-sm text-muted-foreground">{ticket.description}</p>
                               </div>
-                              <p className="text-sm text-muted-foreground">{invoice.description}</p>
+                              <div className="text-right">
+                                <p className="text-2xl font-bold text-agent">£{(ticket.actual_cost || 0).toFixed(2)}</p>
+                                <p className="text-sm text-muted-foreground">Ticket #{ticket.id}</p>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-2xl font-bold text-agent">£{invoice.amount.toFixed(2)}</p>
-                              <p className="text-sm text-muted-foreground">Invoice #{invoice.id}</p>
-                            </div>
-                          </div>
 
-                          {/* Details Row */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="space-y-2">
+                            {/* Details Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4 text-muted-foreground" />
+                                  <div>
+                                    <p className="text-sm font-medium">{worker?.name || 'Unassigned'}</p>
+                                    <p className="text-xs text-muted-foreground">{worker?.specialization || ''}</p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <Building className="w-4 h-4 text-muted-foreground mt-0.5" />
+                                  <div>
+                                    <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown Tenant'}</p>
+                                    <p className="text-xs text-muted-foreground">{ticket.property_address || 'No address'}</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                                  <div>
+                                    <p className="text-sm font-medium">
+                                      Completed: {ticket.completed_at ? new Date(ticket.completed_at).toLocaleDateString() : 'N/A'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Created: {new Date(ticket.created_at).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions Row */}
+                            <div className="flex items-center justify-between pt-2 border-t">
+                              <div className="text-sm text-muted-foreground">
+                                Category: {ticket.category} • Priority: {ticket.priority}
+                              </div>
                               <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-muted-foreground" />
-                                <div>
-                                  <p className="text-sm font-medium">{invoice.workerName}</p>
-                                  <p className="text-xs text-muted-foreground">{invoice.workerSpecialty}</p>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <div className="flex items-start gap-2">
-                                <Building className="w-4 h-4 text-muted-foreground mt-0.5" />
-                                <div>
-                                  <p className="text-sm font-medium">{invoice.tenant}</p>
-                                  <p className="text-xs text-muted-foreground">{invoice.property}</p>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-muted-foreground" />
-                                <div>
-                                  <p className="text-sm font-medium">Completed: {invoice.completedDate}</p>
-                                  <p className="text-xs text-muted-foreground">Invoice: {invoice.date}</p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Actions Row */}
-                          <div className="flex items-center justify-between pt-2 border-t">
-                            <div className="text-sm text-muted-foreground">
-                              {invoice.completed} • {invoice.hours} hours worked
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => setSelectedInvoice(invoice)}
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                View Details
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <Download className="w-4 h-4 mr-1" />
-                                Download
-                              </Button>
-                              {invoice.status === 'Pending' && (
-                                <Button size="sm" className="bg-agent hover:bg-agent-secondary text-white">
-                                  Mark as Paid
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => setSelectedInvoice(ticket)}
+                                >
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  View Details
                                 </Button>
-                              )}
+                                <Button variant="outline" size="sm">
+                                  <Download className="w-4 h-4 mr-1" />
+                                  Download
+                                </Button>
+                                {ticket.payment_status === 'pending' && (
+                                  <Button size="sm" className="bg-agent hover:bg-agent-secondary text-white">
+                                    Mark as Paid
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
 
               {filteredInvoices.length === 0 && (
@@ -335,8 +408,8 @@ export const AgentInvoices = () => {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between">
-                <span>Invoice Details - {selectedInvoice.id}</span>
-                {getStatusBadge(selectedInvoice.status)}
+                <span>Invoice Details - {selectedInvoice.title}</span>
+                {getStatusBadge(selectedInvoice.payment_status)}
               </DialogTitle>
             </DialogHeader>
 
@@ -345,8 +418,8 @@ export const AgentInvoices = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
-                    <span>{selectedInvoice.jobTitle}</span>
-                    <span className="text-2xl font-bold text-agent">£{selectedInvoice.amount.toFixed(2)}</span>
+                    <span>{selectedInvoice.title}</span>
+                    <span className="text-2xl font-bold text-agent">£{(selectedInvoice.actual_cost || 0).toFixed(2)}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -354,7 +427,7 @@ export const AgentInvoices = () => {
                   <div className="flex items-center gap-4">
                     {getPriorityBadge(selectedInvoice.priority)}
                     <span className="text-sm text-muted-foreground">
-                      Completed on {selectedInvoice.completedDate}
+                      Completed on {selectedInvoice.completed_at ? new Date(selectedInvoice.completed_at).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
                 </CardContent>
