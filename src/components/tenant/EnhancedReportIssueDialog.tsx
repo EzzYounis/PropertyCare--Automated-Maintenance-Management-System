@@ -345,8 +345,6 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
             quick_fixes: quickFixesCompleted,
             preferred_time_slots: selectedTimeSlots,
             preferred_date: preferredDate ? format(preferredDate, 'yyyy-MM-dd') : null,
-            tenant_phone: profile?.phone || null,
-            property_address: profile?.address || null,
             photos: [], // For now, just empty array - can implement file upload later
           }
         ])
@@ -371,9 +369,10 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
       onOpenChange(false);
     } catch (error) {
       console.error('Error submitting maintenance request:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       toast({
         title: "Error",
-        description: "Failed to submit maintenance request. Please try again.",
+        description: `Failed to submit maintenance request: ${error.message || 'Please try again.'}`,
         variant: "destructive"
       });
     } finally {

@@ -396,7 +396,7 @@ const AgentDashboardContent = () => {
       console.error('Error assigning worker:', error);
       toast({
         title: "Error",
-        description: "Failed to assign worker",
+        description: `Failed to assign worker: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     }
@@ -473,10 +473,37 @@ const AgentDashboardContent = () => {
     setCompleteModalOpen(true);
   };
 
-  const handleAssignWorker = async (ticketId: string, workerId: string) => {
+  const handleAssignWorker = async (ticketId: string | undefined, workerId: string) => {
     try {
+      if (!ticketId) {
+        toast({
+          title: "Error",
+          description: "No ticket selected for assignment",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!workerId) {
+        toast({
+          title: "Error",
+          description: "No worker selected",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const currentTicket = tickets.find(t => t.id === ticketId);
       
+      if (!currentTicket) {
+        toast({
+          title: "Error",
+          description: "Ticket not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Update the ticket to assign it to a specific worker
       const { error } = await supabase
         .from('maintenance_requests')
@@ -484,7 +511,7 @@ const AgentDashboardContent = () => {
           assigned_worker_id: workerId,
           status: 'quote_submitted',
           // Clear previous quote data if reassigning
-          ...(currentTicket?.status === 'rejected' && {
+          ...(currentTicket.status === 'rejected' && {
             estimated_cost: null,
             estimated_time: null,
             quote_description: null
@@ -496,7 +523,7 @@ const AgentDashboardContent = () => {
         console.error('Error assigning worker:', error);
         toast({
           title: "Error",
-          description: "Failed to assign worker",
+          description: `Failed to assign worker: ${error.message}`,
           variant: "destructive",
         });
         return;
@@ -504,7 +531,7 @@ const AgentDashboardContent = () => {
 
       const allWorkers = await getAllWorkers();
       const worker = allWorkers.find(w => w.id === workerId);
-      const isReassign = currentTicket?.status === 'rejected';
+      const isReassign = currentTicket.status === 'rejected';
       
       toast({
         title: isReassign ? "Worker Reassigned" : "Worker Assigned",
@@ -519,7 +546,7 @@ const AgentDashboardContent = () => {
       console.error('Error assigning worker:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: `Failed to assign worker: ${error.message || 'Unknown error'}`,
         variant: "destructive",
       });
     }

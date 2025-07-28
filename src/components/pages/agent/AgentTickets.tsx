@@ -336,11 +336,11 @@ export const AgentTickets = () => {
                           <p><strong>Reported:</strong> {new Date(ticket.created_at).toLocaleDateString()}</p>
                           <div className="flex items-center gap-1">
                             <Phone className="w-4 h-4" />
-                            <span><strong>Phone:</strong> {ticket.tenant_profile?.phone || ticket.tenant_phone || ticket.tenant_profile?.username || 'Not provided'}</span>
+                            <span><strong>Phone:</strong> {ticket.tenant_phone || ticket.tenant_profile?.username || 'Not provided'}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <MapPin className="w-4 h-4" />
-                            <span><strong>Address:</strong> {ticket.tenant_profile?.address || ticket.property_address || ticket.tenant_address || 'Address not available'}</span>
+                            <span><strong>Address:</strong> {ticket.property_address || ticket.tenant_address || 'Address not available'}</span>
                           </div>
                           {ticket.room && <p><strong>Room:</strong> {ticket.room}</p>}
                           {ticket.subcategory && <p><strong>Type:</strong> {ticket.subcategory}</p>}
