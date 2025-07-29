@@ -27,8 +27,8 @@ CREATE POLICY "Authenticated users can view workers"
   FOR SELECT
   USING (auth.role() = 'authenticated');
 
--- Allow agents to insert/update/delete workers
 CREATE POLICY "Agents can manage workers"
   ON public.workers
   FOR ALL
-  USING (public.get_user_role(auth.uid()) = 'agent');
+  USING (public.get_user_role(auth.uid()) = 'agent')
+  WITH CHECK (public.get_user_role(auth.uid()) = 'agent');

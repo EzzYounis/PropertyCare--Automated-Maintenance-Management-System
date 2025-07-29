@@ -20,6 +20,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (username: string, password: string, role: UserRole, name: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  clearAuth: () => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
 }
@@ -35,7 +36,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
+        console.log('Auth state change:', event, session);
+        
+        // Handle token refresh errors
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.log('Token refresh failed, clearing auth state');
+          await clearAuthState();
+          return;
+        }
+
+        // Handle sign out events
+        if (event === 'SIGNED_OUT') {
+          await clearAuthState();
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -51,8 +67,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // THEN check for existing session with error handling
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+        await clearAuthState();
+        return;
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -60,10 +82,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchUserProfile(session.user.id);
       }
       setLoading(false);
+    }).catch(async (error) => {
+      console.error('Failed to get session:', error);
+      await clearAuthState();
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const clearAuthState = async () => {
+    try {
+      // Clear localStorage tokens
+      localStorage.removeItem('sb-cdbztlkapkmkmlhlcmal-auth-token');
+      localStorage.removeItem('supabase.auth.token');
+      
+      // Reset state
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error clearing auth state:', error);
+    }
+  };
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -127,10 +168,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async (): Promise<void> => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setSession(null);
+    try {
+      await supabase.auth.signOut();
+      await clearAuthState();
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Still clear local state even if signOut fails
+      await clearAuthState();
+    }
   };
 
   return (
@@ -141,6 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       signup,
       logout,
+      clearAuth: clearAuthState,
       isAuthenticated: !!user,
       loading
     }}>

@@ -17,8 +17,10 @@ import { Progress } from '@/components/ui/progress';
 import { EnhancedReportIssueDialog } from '@/components/tenant/EnhancedReportIssueDialog';
 import { MaintenanceDetail } from '@/components/tenant/MaintenanceDetail';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const TenantDashboard = () => {
+  const { profile, user } = useAuth();
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const [issues, setIssues] = useState<any[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<any>(null);
@@ -27,9 +29,15 @@ export const TenantDashboard = () => {
 
   const fetchMaintenanceRequests = async () => {
     try {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('maintenance_requests')
         .select('*')
+        .eq('tenant_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -46,7 +54,7 @@ export const TenantDashboard = () => {
 
   useEffect(() => {
     fetchMaintenanceRequests();
-  }, []);
+  }, [user?.id]);
 
   const handleIssueSubmitted = () => {
     fetchMaintenanceRequests();
@@ -86,7 +94,9 @@ export const TenantDashboard = () => {
       {/* Welcome Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Welcome back, Furkan!</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            Welcome back, {profile?.name || 'User'}!
+          </h1>
           <p className="text-muted-foreground">Here's what's happening with your property</p>
         </div>
         <Button 

@@ -10,15 +10,22 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 
+// Import auth utility for global access
+import "@/utils/clearAuth";
+
 // Import page components
 import { TenantMaintenance } from "@/components/pages/tenant/TenantMaintenance";
 import { TenantPayments } from "@/components/pages/tenant/TenantPayments";
 import { TenantMessages } from "@/components/pages/tenant/TenantMessages";
 import { AgentTickets } from "@/components/pages/agent/AgentTickets";
 import { AgentWorkers } from "@/components/pages/agent/AgentWorkers";
+import { AgentTenants } from "@/components/pages/agent/AgentTenants";
+import { AgentLandlords } from "@/components/pages/agent/AgentLandlords";
+import { AgentProperties } from "@/components/pages/agent/AgentProperties";
 import { AgentMessages } from "@/components/pages/agent/AgentMessages";
 import { AgentInvoices } from "@/components/pages/agent/AgentInvoices";
 import { LandlordMaintenance } from "@/components/pages/landlord/LandlordMaintenance";
+import { PropertyDetail } from "@/components/pages/landlord/PropertyDetail";
 import { Properties } from "@/components/pages/Properties";
 
 const queryClient = new QueryClient();
@@ -84,6 +91,36 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/agent-tenants"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentTenants />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agent-landlords"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentLandlords />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agent-properties"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentProperties />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/payments"
         element={
           <ProtectedRoute>
@@ -119,6 +156,16 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <Properties />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/property/:id"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <PropertyDetail />
             </Layout>
           </ProtectedRoute>
         }
