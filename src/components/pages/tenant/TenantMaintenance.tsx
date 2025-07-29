@@ -31,6 +31,43 @@ const categories = [
   'Plumbing', 'Electrical', 'HVAC', 'Kitchen', 'Bathroom', 'Flooring', 'Windows/Doors', 'General'
 ];
 
+// Normalize status to 4 main phases for tenant view
+const getSimplifiedStatus = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'submitted':
+    case 'pending':
+      return 'submitted';
+    case 'in_progress':
+    case 'scheduled':
+    case 'quote_provided':
+    case 'quoted':
+    case 'on_hold':
+      return 'in_progress';
+    case 'completed':
+      return 'completed';
+    case 'cancelled':
+      return 'cancelled';
+    default:
+      return 'in_progress'; // Default any unknown status to in_progress
+  }
+};
+
+const getSimplifiedStatusDisplay = (status: string) => {
+  const simplified = getSimplifiedStatus(status);
+  switch (simplified) {
+    case 'submitted':
+      return 'Submitted';
+    case 'in_progress':
+      return 'In Progress';
+    case 'completed':
+      return 'Completed';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return 'In Progress';
+  }
+};
+
 export const TenantMaintenance = () => {
   const [issues, setIssues] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,13 +119,16 @@ export const TenantMaintenance = () => {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
+    const simplified = getSimplifiedStatus(status);
+    switch (simplified) {
       case 'completed':
         return <CheckCircle className="w-4 h-4 text-success" />;
-      case 'in progress':
+      case 'in_progress':
         return <Wrench className="w-4 h-4 text-warning" />;
-      case 'scheduled':
+      case 'submitted':
         return <Clock className="w-4 h-4 text-info" />;
+      case 'cancelled':
+        return <AlertTriangle className="w-4 h-4 text-destructive" />;
       default:
         return <AlertTriangle className="w-4 h-4 text-muted-foreground" />;
     }
@@ -111,7 +151,7 @@ export const TenantMaintenance = () => {
   const filteredIssues = issues.filter(issue => {
     const matchesSearch = issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          issue.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || issue.status.toLowerCase() === filterStatus.toLowerCase();
+    const matchesFilter = filterStatus === 'all' || getSimplifiedStatus(issue.status) === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
@@ -133,6 +173,44 @@ export const TenantMaintenance = () => {
           Report New Issue
         </Button>
       </div>
+
+      {/* Status Overview */}
+      {issues.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Request Status Overview</CardTitle>
+            <CardDescription>Overview of your maintenance requests by status</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { status: 'submitted', label: 'Submitted', color: 'bg-blue-500' },
+                { status: 'in_progress', label: 'In Progress', color: 'bg-yellow-500' },
+                { status: 'completed', label: 'Completed', color: 'bg-green-500' },
+                { status: 'cancelled', label: 'Cancelled', color: 'bg-red-500' },
+              ].map(({ status, label, color }) => {
+                const count = issues.filter(issue => getSimplifiedStatus(issue.status) === status).length;
+                
+                return (
+                  <div
+                    key={status}
+                    className={`p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors ${
+                      filterStatus === status ? 'ring-2 ring-tenant bg-tenant/5' : ''
+                    }`}
+                    onClick={() => setFilterStatus(filterStatus === status ? 'all' : status)}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`w-3 h-3 rounded-full ${color}`}></div>
+                      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+                    </div>
+                    <div className="text-2xl font-bold">{count}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <Card>
@@ -157,9 +235,10 @@ export const TenantMaintenance = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="in progress">In Progress</SelectItem>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -205,8 +284,12 @@ export const TenantMaintenance = () => {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <Badge variant={issue.status === 'completed' ? 'default' : 'secondary'} className="w-fit">
-                      {issue.status.charAt(0).toUpperCase() + issue.status.slice(1)}
+                    <Badge variant={
+                      getSimplifiedStatus(issue.status) === 'completed' ? 'default' : 
+                      getSimplifiedStatus(issue.status) === 'cancelled' ? 'destructive' :
+                      'secondary'
+                    } className="w-fit">
+                      {getSimplifiedStatusDisplay(issue.status)}
                     </Badge>
                     <Button 
                       variant="outline" 
