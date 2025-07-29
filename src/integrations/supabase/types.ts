@@ -7,11 +7,6 @@ export type Json =
   | Json[];
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "12.2.12 (cd3cf9e)";
-  };
   public: {
     Tables: {
       maintenance_requests: {
@@ -61,11 +56,11 @@ export type Database = {
           photos?: string[] | null;
           preferred_date?: string | null;
           preferred_time_slots?: string[] | null;
-          priority?: string;
+          priority: string;
           quick_fixes?: string[] | null;
           quote_description?: string | null;
           room?: string | null;
-          status?: string;
+          status: string;
           subcategory?: string | null;
           tenant_id: string;
           title: string;
@@ -98,6 +93,176 @@ export type Database = {
           tenant_id?: string;
           title?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      properties: {
+        Row: {
+          id: string;
+          name: string;
+          address: string;
+          type: string;
+          landlord_id: string | null;
+          units: number | null;
+          rent_per_unit: number | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          address: string;
+          type: string;
+          landlord_id?: string | null;
+          units?: number | null;
+          rent_per_unit?: number | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          address?: string;
+          type?: string;
+          landlord_id?: string | null;
+          units?: number | null;
+          rent_per_unit?: number | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "properties_landlord_id_fkey";
+            columns: ["landlord_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      tenants: {
+        Row: {
+          id: string;
+          property_id: string | null;
+          landlord_id: string;
+          lease_start: string | null;
+          lease_end: string | null;
+          monthly_rent: number | null;
+          status: string;
+        };
+        Insert: {
+          id: string;
+          property_id?: string | null;
+          landlord_id: string;
+          lease_start?: string | null;
+          lease_end?: string | null;
+          monthly_rent?: number | null;
+          status?: string;
+        };
+        Update: {
+          id?: string;
+          property_id?: string | null;
+          landlord_id?: string;
+          lease_start?: string | null;
+          lease_end?: string | null;
+          monthly_rent?: number | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenants_id_fkey";
+            columns: ["id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tenants_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tenants_landlord_id_fkey";
+            columns: ["landlord_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      landlords: {
+        Row: {
+          id: string;
+          company: string | null;
+          business_address: string | null;
+          total_properties: number | null;
+          total_revenue: number | null;
+          status: string;
+        };
+        Insert: {
+          id: string;
+          company?: string | null;
+          business_address?: string | null;
+          total_properties?: number | null;
+          total_revenue?: number | null;
+          status?: string;
+        };
+        Update: {
+          id?: string;
+          company?: string | null;
+          business_address?: string | null;
+          total_properties?: number | null;
+          total_revenue?: number | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landlords_id_fkey";
+            columns: ["id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      profiles: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          role: Database["public"]["Enums"]["app_role"];
+          updated_at: string;
+          username: string;
+          email: string | null;
+          phone: string | null;
+          address: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id: string;
+          name: string;
+          role: Database["public"]["Enums"]["app_role"];
+          updated_at?: string;
+          username: string;
+          email?: string | null;
+          phone?: string | null;
+          address?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          role?: Database["public"]["Enums"]["app_role"];
+          updated_at?: string;
+          username?: string;
+          email?: string | null;
+          phone?: string | null;
+          address?: string | null;
         };
         Relationships: [];
       };
@@ -199,33 +364,6 @@ export type Database = {
             referencedColumns: ["id"];
           }
         ];
-      };
-      profiles: {
-        Row: {
-          created_at: string;
-          id: string;
-          name: string;
-          role: Database["public"]["Enums"]["app_role"];
-          updated_at: string;
-          username: string;
-        };
-        Insert: {
-          created_at?: string;
-          id: string;
-          name: string;
-          role: Database["public"]["Enums"]["app_role"];
-          updated_at?: string;
-          username: string;
-        };
-        Update: {
-          created_at?: string;
-          id?: string;
-          name?: string;
-          role?: Database["public"]["Enums"]["app_role"];
-          updated_at?: string;
-          username?: string;
-        };
-        Relationships: [];
       };
     };
     Views: {

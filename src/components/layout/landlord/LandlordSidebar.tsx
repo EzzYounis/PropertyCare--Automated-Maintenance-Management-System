@@ -1,9 +1,11 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Home, 
   Building, 
   Wrench, 
-  DollarSign, 
   MessageSquare, 
   Crown
 } from 'lucide-react';
@@ -23,13 +25,62 @@ const menuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
   { title: 'Properties', url: '/properties', icon: Building },
   { title: 'Maintenance', url: '/landlord-maintenance', icon: Wrench },
-  { title: 'Finance', url: '/finance', icon: DollarSign },
   { title: 'Messages', url: '/messages', icon: MessageSquare },
 ];
 
 export const LandlordSidebar = () => {
   const { open } = useSidebar();
+  const { profile } = useAuth();
   const location = useLocation();
+  const [stats, setStats] = useState({ properties: 0, openRequests: 0 });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!profile?.id) return;
+      
+      try {
+        // Import tenantService dynamically to avoid circular import
+        const { tenantService } = await import('@/lib/tenantService');
+        
+        // Fetch properties count
+        const allProperties = await tenantService.getProperties();
+        const propertiesData = allProperties.filter(p => p.landlord_id === profile.id);
+        
+        // Fetch open maintenance requests for this landlord's properties
+        if (propertiesData.length > 0) {
+          const { data: tenants } = await supabase
+            .from('tenants')
+            .select('id')
+            .eq('landlord_id', profile.id);
+          
+          if (tenants && tenants.length > 0) {
+            const tenantIds = tenants.map(t => t.id);
+            const { data: requests } = await supabase
+              .from('maintenance_requests')
+              .select('id')
+              .in('tenant_id', tenantIds)
+              .neq('status', 'completed');
+            
+            setStats({
+              properties: propertiesData.length,
+              openRequests: requests?.length || 0
+            });
+          } else {
+            setStats({
+              properties: propertiesData.length,
+              openRequests: 0
+            });
+          }
+        } else {
+          setStats({ properties: 0, openRequests: 0 });
+        }
+      } catch (error) {
+        console.error('Error fetching sidebar stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, [profile?.id]);
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-landlord-secondary text-landlord border-l-4 border-landlord' : 'hover:bg-landlord-secondary/50 text-muted-foreground hover:text-landlord';
@@ -80,11 +131,11 @@ export const LandlordSidebar = () => {
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span>Properties</span>
-                  <span className="text-landlord font-semibold">12</span>
+                  <span className="text-landlord font-semibold">{stats.properties}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Open Requests</span>
-                  <span className="text-warning font-semibold">5</span>
+                  <span className="text-warning font-semibold">{stats.openRequests}</span>
                 </div>
               </div>
             </div>

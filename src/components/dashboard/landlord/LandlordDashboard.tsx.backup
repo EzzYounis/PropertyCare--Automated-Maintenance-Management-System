@@ -22,12 +22,37 @@ import {
   Clock,
   BarChart3,
   FileText,
-  Eye
+  Eye,
+  Droplets,
+  Zap,
+  Thermometer,
+  Settings,
+  Bug,
+  Key,
+  Paintbrush,
+  Grid3X3,
+  DoorOpen,
+  TreePine
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Issue categories mapping to match database
+const issueCategories = {
+  'Plumbing': { icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-100' },
+  'Electrical': { icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-100' },
+  'HVAC': { icon: Thermometer, color: 'text-green-500', bg: 'bg-green-100' },
+  'Appliances': { icon: Settings, color: 'text-purple-500', bg: 'bg-purple-100' },
+  'Pest Control': { icon: Bug, color: 'text-red-500', bg: 'bg-red-100' },
+  'Locks/Security': { icon: Key, color: 'text-indigo-500', bg: 'bg-indigo-100' },
+  'Painting/Walls': { icon: Paintbrush, color: 'text-orange-500', bg: 'bg-orange-100' },
+  'Flooring': { icon: Grid3X3, color: 'text-amber-500', bg: 'bg-amber-100' },
+  'Windows/Doors': { icon: DoorOpen, color: 'text-cyan-500', bg: 'bg-cyan-100' },
+  'Landscaping': { icon: TreePine, color: 'text-emerald-500', bg: 'bg-emerald-100' },
+  'Other': { icon: Wrench, color: 'text-gray-500', bg: 'bg-gray-100' }
+};
 
 export const LandlordDashboard = () => {
   const { profile } = useAuth();
@@ -54,6 +79,33 @@ export const LandlordDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([
+          fetchMaintenanceRequests(),
+          fetchWorkers(),
+          fetchProperties(),
+          fetchEnhancedDashboardStats()
+        ]);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (profile?.id) {
+      fetchData();
+    }
+  }, [profile?.id]);
 
   const fetchProperties = async () => {
     if (!profile?.id) return;
@@ -114,70 +166,31 @@ export const LandlordDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching maintenance requests:', error);
-      setTickets([]);
     }
   };
 
   const fetchWorkers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('workers')
-        .select('*')
-        .order('name');
-
+      const { data, error } = await supabase.from('workers').select('*');
       if (error) throw error;
       setWorkers(data || []);
     } catch (error) {
       console.error('Error fetching workers:', error);
-      setWorkers([]);
     }
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        await Promise.all([
-          fetchMaintenanceRequests(),
-          fetchWorkers(),
-          fetchProperties(),
-          fetchEnhancedDashboardStats()
-        ]);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load dashboard data",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (profile?.id) {
-      fetchData();
-    }
-  }, [profile?.id]);
-
-  const getInvoiceTickets = () => {
-    return tickets.filter(ticket => 
-      ticket.status === 'completed' && 
-      (ticket.actual_cost || ticket.estimated_cost)
-    );
-  };
+  const getInvoiceTickets = () => tickets.filter(ticket => 
+    ticket.status === 'completed' && ticket.actual_cost && ticket.actual_cost > 0
+  );
 
   const renderInvoiceTable = () => {
     const invoiceTickets = getInvoiceTickets();
-
+    
     if (invoiceTickets.length === 0) {
       return (
-        <div className="text-center py-12">
-          <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No Invoices Available</h3>
-          <p className="text-muted-foreground">
-            Completed maintenance requests will appear here for invoicing
-          </p>
+        <div className="text-center py-8 text-muted-foreground">
+          <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>No completed tickets with costs available for invoicing</p>
         </div>
       );
     }
@@ -187,38 +200,63 @@ export const LandlordDashboard = () => {
         <TableHeader>
           <TableRow>
             <TableHead>Invoice #</TableHead>
+            <TableHead>Property</TableHead>
             <TableHead>Tenant</TableHead>
             <TableHead>Category</TableHead>
-            <TableHead>Description</TableHead>
             <TableHead>Completed Date</TableHead>
             <TableHead>Worker</TableHead>
-            <TableHead>Amount</TableHead>
+            <TableHead>Estimated Cost</TableHead>
+            <TableHead>Actual Cost</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {invoiceTickets.map((ticket) => (
             <TableRow key={ticket.id}>
-              <TableCell className="font-medium">
-                INV-{ticket.id?.slice(-8) || '12345678'}
-              </TableCell>
-              <TableCell>{ticket.tenant_profile?.name || 'Unknown'}</TableCell>
               <TableCell>
-                <Badge variant="outline">{ticket.category}</Badge>
-              </TableCell>
-              <TableCell className="max-w-xs truncate">{ticket.title}</TableCell>
-              <TableCell>
-                {ticket.completed_at ? new Date(ticket.completed_at).toLocaleDateString() : 'N/A'}
+                <p className="font-medium text-sm">INV-{ticket.id?.slice(-8) || '12345678'}</p>
               </TableCell>
               <TableCell>
-                {ticket.assigned_worker_id ? 
-                  workers.find(w => w.id === ticket.assigned_worker_id)?.name || 'Unknown Worker'
-                  : 'Unassigned'
-                }
+                <p className="text-sm">{ticket.property_address || 'Property Address Not Available'}</p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm font-medium">{ticket.tenant_profile?.name || 'Unknown'}</p>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center space-x-2">
+                  <div className={`p-2 rounded-lg ${issueCategories[ticket.category]?.bg || 'bg-muted'}`}>
+                    {React.createElement(issueCategories[ticket.category]?.icon || Wrench, {
+                      className: `h-4 w-4 ${issueCategories[ticket.category]?.color || 'text-muted-foreground'}`
+                    })}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{ticket.title}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{ticket.category}</p>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">
+                  {ticket.completed_at 
+                    ? new Date(ticket.completed_at).toLocaleDateString()
+                    : 'N/A'}
+                </p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm">
+                  {ticket.assigned_worker_id
+                    ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || 'Unknown Worker'
+                    : 'Unassigned'}
+                </p>
+              </TableCell>
+              <TableCell>
+                <p className="text-sm font-medium">
+                  £{ticket.estimated_cost ? ticket.estimated_cost.toFixed(2) : '0.00'}
+                </p>
               </TableCell>
               <TableCell>
                 <p className="text-sm font-bold text-green-600">
-                  ${ticket.actual_cost ? ticket.actual_cost.toFixed(2) : (ticket.estimated_cost || 0).toFixed(2)}
+                  £{ticket.actual_cost ? ticket.actual_cost.toFixed(2) : '0.00'}
                 </p>
               </TableCell>
               <TableCell>
@@ -227,6 +265,7 @@ export const LandlordDashboard = () => {
                     size="sm" 
                     variant="outline"
                     onClick={() => {
+                      // Could open a detailed invoice view here
                       toast({
                         title: "Invoice Details",
                         description: `Viewing invoice INV-${ticket.id?.slice(-8) || '12345678'}`,
@@ -235,6 +274,66 @@ export const LandlordDashboard = () => {
                   >
                     <Eye className="w-4 h-4 mr-1" />
                     View
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="default"
+                    className="bg-landlord hover:bg-landlord/90 text-white"
+                    onClick={() => {
+                      // Generate and download invoice
+                      const invoiceData = {
+                        invoiceNumber: `INV-${ticket.id?.slice(-8) || '12345678'}`,
+                        tenant: ticket.tenant_profile?.name || 'Unknown',
+                        property: ticket.property_address || 'Property Address Not Available',
+                        completedDate: ticket.completed_at ? new Date(ticket.completed_at).toLocaleDateString() : 'N/A',
+                        worker: ticket.assigned_worker_id ? workers.find(w => w.id === ticket.assigned_worker_id)?.name || 'Unknown Worker' : 'Unassigned',
+                        category: ticket.category,
+                        title: ticket.title,
+                        estimatedCost: ticket.estimated_cost || 0,
+                        actualCost: ticket.actual_cost || 0
+                      };
+                      
+                      const invoiceContent = `
+PROPERTY MAINTENANCE INVOICE
+
+Invoice Number: ${invoiceData.invoiceNumber}
+Date: ${new Date().toLocaleDateString()}
+
+Property Owner: Ezzaldeen
+Tenant: ${invoiceData.tenant}
+Property Address: ${invoiceData.property}
+
+Work Completed:
+Category: ${invoiceData.category}
+Description: ${invoiceData.title}
+Completed Date: ${invoiceData.completedDate}
+Worker: ${invoiceData.worker}
+
+Cost Summary:
+Estimated Cost: £${invoiceData.estimatedCost.toFixed(2)}
+Actual Cost: £${invoiceData.actualCost.toFixed(2)}
+
+Total Amount Due: £${invoiceData.actualCost.toFixed(2)}
+
+Payment Terms: Net 30 days
+                      `;
+                      
+                      const element = document.createElement('a');
+                      const file = new Blob([invoiceContent], { type: 'text/plain' });
+                      element.href = URL.createObjectURL(file);
+                      element.download = `${invoiceData.invoiceNumber}.txt`;
+                      document.body.appendChild(element);
+                      element.click();
+                      document.body.removeChild(element);
+                      
+                      toast({
+                        title: "Invoice Downloaded",
+                        description: `Invoice ${invoiceData.invoiceNumber} has been generated and downloaded.`,
+                      });
+                    }}
+                  >
+                    <FileText className="w-4 h-4 mr-1" />
+                    Download
                   </Button>
                 </div>
               </TableCell>
@@ -311,14 +410,14 @@ export const LandlordDashboard = () => {
 
         <Card className="border-l-4 border-error">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month Costs</CardTitle>
+            <CardTitle className="text-sm font-medium">Maintenance Costs</CardTitle>
             <AlertTriangle className="h-4 w-4 text-error" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-error">
               ${enhancedStats.totalSpentThisMonth.toFixed(0)}
             </div>
-            <p className="text-xs text-muted-foreground">Maintenance costs</p>
+            <p className="text-xs text-muted-foreground">Total this month</p>
           </CardContent>
         </Card>
 
@@ -342,7 +441,7 @@ export const LandlordDashboard = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Top Stats Cards - Like the image */}
+          {/* Top Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Total Spent This Month */}
             <Card>
@@ -450,7 +549,7 @@ export const LandlordDashboard = () => {
                 <CardDescription>Number of repairs completed each month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-80 flex items-end justify-center relative">
+                <div className="h-80 flex items-end justify-center">
                   <svg width="100%" height="100%" viewBox="0 0 300 200" className="overflow-visible">
                     <defs>
                       <linearGradient id="repairGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -458,14 +557,14 @@ export const LandlordDashboard = () => {
                         <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0"/>
                       </linearGradient>
                     </defs>
-                    {enhancedStats.monthlyRepairsTrend.length > 1 && (
+                    {enhancedStats.monthlyRepairsTrend.length > 0 && (
                       <>
                         {/* Area fill */}
                         <path
                           d={`M 0 200 ${enhancedStats.monthlyRepairsTrend.map((repair, index) => {
-                            const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
-                            const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
-                            const y = 200 - (repair.count / maxCount) * 150;
+                            const x = (index / (enhancedStats.monthlyRepairsTrend.length - 1)) * 300;
+                            const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count));
+                            const y = 200 - (maxCount > 0 ? (repair.count / maxCount) * 150 : 0);
                             return `L ${x} ${y}`;
                           }).join(' ')} L 300 200 Z`}
                           fill="url(#repairGradient)"
@@ -473,9 +572,9 @@ export const LandlordDashboard = () => {
                         {/* Line */}
                         <path
                           d={`M ${enhancedStats.monthlyRepairsTrend.map((repair, index) => {
-                            const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
-                            const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
-                            const y = 200 - (repair.count / maxCount) * 150;
+                            const x = (index / (enhancedStats.monthlyRepairsTrend.length - 1)) * 300;
+                            const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count));
+                            const y = 200 - (maxCount > 0 ? (repair.count / maxCount) * 150 : 0);
                             return `${index === 0 ? '' : 'L '}${x} ${y}`;
                           }).join(' ')}`}
                           fill="none"
@@ -485,9 +584,9 @@ export const LandlordDashboard = () => {
                         />
                         {/* Points */}
                         {enhancedStats.monthlyRepairsTrend.map((repair, index) => {
-                          const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
-                          const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
-                          const y = 200 - (repair.count / maxCount) * 150;
+                          const x = (index / (enhancedStats.monthlyRepairsTrend.length - 1)) * 300;
+                          const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count));
+                          const y = 200 - (maxCount > 0 ? (repair.count / maxCount) * 150 : 0);
                           return (
                             <circle
                               key={index}
@@ -503,7 +602,7 @@ export const LandlordDashboard = () => {
                       </>
                     )}
                   </svg>
-                  <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-muted-foreground px-4">
+                  <div className="absolute bottom-4 left-4 right-4 flex justify-between text-xs text-muted-foreground">
                     {enhancedStats.monthlyRepairsTrend.map((repair, index) => (
                       <span key={index}>{repair.month}</span>
                     ))}
@@ -539,13 +638,7 @@ export const LandlordDashboard = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`text-lg font-bold ${
-                          index === 0 ? 'text-red-600' : 
-                          index === 1 ? 'text-orange-600' : 
-                          index === 2 ? 'text-yellow-600' : 
-                          index === 3 ? 'text-green-600' : 
-                          'text-gray-600'
-                        }`}>
+                        <p className="text-lg font-bold ${index === 0 ? 'text-red-600' : index === 1 ? 'text-orange-600' : index === 2 ? 'text-yellow-600' : index === 3 ? 'text-green-600' : 'text-gray-600'}">
                           ${property.cost.toFixed(0)}
                         </p>
                       </div>
@@ -561,44 +654,114 @@ export const LandlordDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Portfolio Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="w-5 h-5 text-landlord" />
-                Portfolio Summary
-              </CardTitle>
-              <CardDescription>Overview of your property portfolio performance</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-landlord">{enhancedStats.basicStats.totalProperties}</div>
-                  <p className="text-xs text-muted-foreground">Total Properties</p>
+          {/* Portfolio Overview - Basic Stats */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-landlord" />
+                  Portfolio Summary
+                </CardTitle>
+                <CardDescription>Overview of your property portfolio performance</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-landlord">{enhancedStats.basicStats.totalProperties}</div>
+                    <p className="text-xs text-muted-foreground">Total Properties</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-success">{enhancedStats.basicStats.occupiedProperties}</div>
+                    <p className="text-xs text-muted-foreground">Occupied</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-warning">{enhancedStats.basicStats.availableProperties}</div>
+                    <p className="text-xs text-muted-foreground">Available</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-info">${enhancedStats.basicStats.monthlyRevenue.toFixed(0)}</div>
+                    <p className="text-xs text-muted-foreground">Monthly Revenue</p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-success">{enhancedStats.basicStats.occupiedProperties}</div>
-                  <p className="text-xs text-muted-foreground">Occupied</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-warning">{enhancedStats.basicStats.availableProperties}</div>
-                  <p className="text-xs text-muted-foreground">Available</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-info">${enhancedStats.basicStats.monthlyRevenue.toFixed(0)}</div>
-                  <p className="text-xs text-muted-foreground">Monthly Revenue</p>
-                </div>
-              </div>
 
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span>Occupancy Rate</span>
-                  <span className="font-medium">{enhancedStats.basicStats.occupancyRate.toFixed(0)}%</span>
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Occupancy Rate</span>
+                    <span className="font-medium">{enhancedStats.basicStats.occupancyRate.toFixed(0)}%</span>
+                  </div>
+                  <Progress value={enhancedStats.basicStats.occupancyRate} className="h-2" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {enhancedStats.basicStats.occupiedProperties} of {enhancedStats.basicStats.totalProperties} properties occupied
+                  </p>
                 </div>
-                <Progress value={enhancedStats.basicStats.occupancyRate} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {enhancedStats.basicStats.occupiedProperties} of {enhancedStats.basicStats.totalProperties} properties occupied
-                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building className="w-5 h-5 text-landlord" />
+                  Quick Stats
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Active Tenants</span>
+                  <span className="font-bold">{enhancedStats.basicStats.totalTenants}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">This Month Maintenance</span>
+                  <span className="font-bold">${enhancedStats.totalSpentThisMonth.toFixed(0)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Pending Invoices</span>
+                  <span className="font-bold text-warning">{enhancedStats.pendingInvoices}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Avg Cost/Property</span>
+                  <span className="font-bold">${enhancedStats.averageCostPerProperty.toFixed(0)}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-success/10 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-success" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Plumbing repair completed at 789 Pine Street</p>
+                      <p className="text-sm text-muted-foreground">Cost: $420 • Completed by John Smith • 2 hours ago</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-success text-white">Completed</Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-info/10 rounded-lg flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-info" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Rent payment received from Unit 3A</p>
+                      <p className="text-sm text-muted-foreground">Amount: $1,850 • 456 Oak Avenue • 1 day ago</p>
+                    </div>
+                  </div>
+                  <Badge variant="outline">Payment</Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-warning/10 rounded-lg flex items-center justify-center">
+                      <Users className="w-5 h-5 text-warning" />
+                    </div>
+                    <div>
+                      <p className="font-medium">New tenant application for Unit 1C</p>
+                      <p className="text-sm text-muted-foreground">123 Maple Street • Background check pending • 2 days ago</p>
+                    </div>
+                  </div>
+                  <Badge variant="secondary">Application</Badge>
+                </div>
               </div>
             </CardContent>
           </Card>

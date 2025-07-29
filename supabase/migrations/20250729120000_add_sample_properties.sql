@@ -1,0 +1,2 @@
+-- Sample properties will be added after schema is fixed
+-- This migration is temporarily disabled

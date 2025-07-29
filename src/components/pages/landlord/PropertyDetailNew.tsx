@@ -67,18 +67,9 @@ export const PropertyDetail = () => {
       const landlord = landlords.find(l => l.id === foundProperty.landlord_id);
       const tenant = tenants.find(t => t.property_id === foundProperty.id);
 
-      // Map database status to display status
-      let displayStatus = foundProperty.status;
-      if (foundProperty.status === 'active') {
-        displayStatus = tenant ? 'occupied' : 'available';
-      } else if (foundProperty.status === 'inactive') {
-        displayStatus = 'available';
-      }
-
       // Enhance property with additional details
       const enhancedProperty: PropertyWithDetails = {
         ...foundProperty,
-        status: displayStatus, // Use mapped status for display
         landlord_name: landlord?.name,
         landlord_email: landlord?.email,
         landlord_phone: landlord?.phone,
@@ -103,12 +94,10 @@ export const PropertyDetail = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'occupied':
-      case 'active': // Map database 'active' to 'occupied' display
-        return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">Occupied</Badge>;
-      case 'available':
-      case 'inactive': // Map database 'inactive' to 'available' display
-        return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Available</Badge>;
+      case 'active':
+        return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Active</Badge>;
+      case 'inactive':
+        return <Badge variant="secondary" className="bg-gray-100 text-gray-800 border-gray-200">Inactive</Badge>;
       case 'maintenance':
         return <Badge variant="destructive" className="bg-yellow-100 text-yellow-800 border-yellow-200">Maintenance</Badge>;
       default:

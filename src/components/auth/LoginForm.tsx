@@ -5,15 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, AlertCircle } from 'lucide-react';
+import { Building2, AlertCircle, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { clearAllAuthTokens } from '@/utils/clearAuth';
 import propertyHero from '@/assets/property-hero.jpg';
 
 export const LoginForm = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, clearAuth } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -45,6 +46,23 @@ export const LoginForm = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClearAuth = async () => {
+    try {
+      await clearAuth();
+      clearAllAuthTokens();
+      toast({
+        title: "Authentication cleared",
+        description: "All authentication tokens have been cleared. Please try logging in again.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear authentication tokens.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -105,6 +123,18 @@ export const LoginForm = () => {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
+
+          <div className="flex justify-center">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleClearAuth}
+              className="text-xs"
+            >
+              <RotateCcw className="w-3 h-3 mr-2" />
+              Clear Authentication
+            </Button>
+          </div>
 
           <div className="border-t pt-6">
             <div className="flex items-start gap-3 p-4 bg-muted rounded-lg">

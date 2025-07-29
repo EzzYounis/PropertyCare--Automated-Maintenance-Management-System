@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,17 +10,44 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Search, Edit, Trash2, User, Mail, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { tenantService } from '@/lib/tenantService';
-import type { TenantProfile, LandlordProfile, CreateTenantData } from '@/lib/tenantService';
+import type { TenantProfile, LandlordProfile, CreateTenantData, Property } from '@/lib/tenantService';
 
 export const AgentTenants = () => {
   const [tenants, setTenants] = useState<TenantProfile[]>([]);
   const [landlords, setLandlords] = useState<LandlordProfile[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<TenantProfile | null>(null);
+  const [propertySearchTerm, setPropertySearchTerm] = useState('');
+  const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
+  const propertySearchRef = useRef<HTMLDivElement>(null);
+
+  // Filter properties based on search term
+  const filteredProperties = properties.filter(property =>
+    propertySearchTerm && (
+      property.name.toLowerCase().includes(propertySearchTerm.toLowerCase()) ||
+      property.short_id?.toLowerCase().includes(propertySearchTerm.toLowerCase()) ||
+      property.id.toString().includes(propertySearchTerm) ||
+      property.address.toLowerCase().includes(propertySearchTerm.toLowerCase())
+    )
+  );
+
+  // Handle click outside to close property dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (propertySearchRef.current && !propertySearchRef.current.contains(event.target as Node)) {
+        setShowPropertyDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -28,6 +55,8 @@ export const AgentTenants = () => {
     email: '',
     phone: '',
     address: '',
+    property_id: 'none',
+    property_name: '',
     landlord_id: 'none',
     lease_start: '',
     lease_end: '',
@@ -45,12 +74,14 @@ export const AgentTenants = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [tenantsData, landlordsData] = await Promise.all([
+      const [tenantsData, landlordsData, propertiesData] = await Promise.all([
         tenantService.getTenants(),
-        tenantService.getLandlords()
+        tenantService.getLandlords(),
+        tenantService.getProperties()
       ]);
       setTenants(tenantsData);
       setLandlords(landlordsData);
+      setProperties(propertiesData);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -71,6 +102,8 @@ export const AgentTenants = () => {
       email: '',
       phone: '',
       address: '',
+      property_id: 'none',
+      property_name: '',
       landlord_id: 'none',
       lease_start: '',
       lease_end: '',
@@ -80,6 +113,8 @@ export const AgentTenants = () => {
       tenant_status: 'active'
     });
     setSelectedTenant(null);
+    setPropertySearchTerm('');
+    setShowPropertyDropdown(false);
   };
 
   const handleCreateTenant = async () => {
@@ -91,6 +126,7 @@ export const AgentTenants = () => {
         email: formData.email,
         phone: formData.phone || undefined,
         address: formData.address || undefined,
+        property_id: (formData.property_id && formData.property_id !== 'none') ? formData.property_id : undefined,
         landlord_id: (formData.landlord_id && formData.landlord_id !== 'none') ? formData.landlord_id : undefined,
         lease_start: formData.lease_start || undefined,
         lease_end: formData.lease_end || undefined,
@@ -110,9 +146,10 @@ export const AgentTenants = () => {
       });
     } catch (error) {
       console.error('Error creating tenant:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create tenant. Please try again.';
       toast({
         title: 'Error',
-        description: 'Failed to create tenant. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -128,6 +165,7 @@ export const AgentTenants = () => {
         email: formData.email,
         phone: formData.phone || undefined,
         address: formData.address || undefined,
+        property_id: (formData.property_id && formData.property_id !== 'none') ? formData.property_id : undefined,
         landlord_id: (formData.landlord_id && formData.landlord_id !== 'none') ? formData.landlord_id : undefined,
         lease_start: formData.lease_start || undefined,
         lease_end: formData.lease_end || undefined,
@@ -178,6 +216,7 @@ export const AgentTenants = () => {
 
   const openEditModal = (tenant: TenantProfile) => {
     setSelectedTenant(tenant);
+    const selectedProperty = properties.find(p => p.id === tenant.property_id);
     setFormData({
       name: tenant.name || '',
       username: tenant.username || '',
@@ -185,6 +224,8 @@ export const AgentTenants = () => {
       email: tenant.email || '',
       phone: tenant.phone || '',
       address: tenant.address || '',
+      property_id: tenant.property_id || 'none',
+      property_name: selectedProperty?.name || '',
       landlord_id: tenant.landlord_id || 'none',
       lease_start: tenant.lease_start || '',
       lease_end: tenant.lease_end || '',
@@ -193,6 +234,7 @@ export const AgentTenants = () => {
       emergency_contact_phone: tenant.emergency_contact_phone || '',
       tenant_status: tenant.tenant_status || 'active'
     });
+    setPropertySearchTerm(selectedProperty?.name || '');
     setIsEditModalOpen(true);
   };
 
@@ -208,6 +250,12 @@ export const AgentTenants = () => {
     if (!landlordId) return 'No landlord assigned';
     const landlord = landlords.find(l => l.id === landlordId);
     return landlord?.name || 'Unknown';
+  };
+
+  const getPropertyName = (propertyId?: string) => {
+    if (!propertyId) return 'No property assigned';
+    const property = properties.find(p => p.id === propertyId);
+    return property?.name || 'Unknown';
   };
 
   if (loading) {
@@ -273,6 +321,7 @@ export const AgentTenants = () => {
               <TableRow>
                 <TableHead>Tenant</TableHead>
                 <TableHead>Contact</TableHead>
+                <TableHead>Property</TableHead>
                 <TableHead>Landlord</TableHead>
                 <TableHead>Lease Period</TableHead>
                 <TableHead>Monthly Rent</TableHead>
@@ -312,6 +361,7 @@ export const AgentTenants = () => {
                       )}
                     </div>
                   </TableCell>
+                  <TableCell>{getPropertyName(tenant.property_id)}</TableCell>
                   <TableCell>{getLandlordName(tenant.landlord_id)}</TableCell>
                   <TableCell>
                     {tenant.lease_start && tenant.lease_end
@@ -437,20 +487,67 @@ export const AgentTenants = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="landlord">Landlord</Label>
-                <Select value={formData.landlord_id} onValueChange={(value) => setFormData({...formData, landlord_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a landlord" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No landlord assigned</SelectItem>
-                    {landlords.map((landlord) => (
-                      <SelectItem key={landlord.id} value={landlord.id}>
-                        {landlord.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="property">Property Search</Label>
+                <div className="relative" ref={propertySearchRef}>
+                  <Input
+                    id="property"
+                    value={propertySearchTerm}
+                    onChange={(e) => {
+                      setPropertySearchTerm(e.target.value);
+                      setShowPropertyDropdown(e.target.value.length > 0);
+                      // Find matching property and update formData
+                      const matchingProperty = properties.find(p => 
+                        p.name.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                        p.short_id?.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                        p.id.toString().includes(e.target.value)
+                      );
+                      
+                      if (matchingProperty) {
+                        setFormData({
+                          ...formData, 
+                          property_id: matchingProperty.id,
+                          property_name: matchingProperty.name,
+                          landlord_id: matchingProperty.landlord_id || 'none'
+                        });
+                      } else {
+                        setFormData({
+                          ...formData, 
+                          property_id: 'none',
+                          property_name: e.target.value,
+                          landlord_id: 'none'
+                        });
+                      }
+                    }}
+                    onFocus={() => setShowPropertyDropdown(propertySearchTerm.length > 0)}
+                    placeholder="Search by property name or ID"
+                  />
+                  {showPropertyDropdown && propertySearchTerm && (
+                    <div className="absolute top-full left-0 right-0 bg-white border rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
+                      {filteredProperties.map((property) => (
+                        <div
+                          key={property.id}
+                          className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          onClick={() => {
+                            setPropertySearchTerm(property.name);
+                            setShowPropertyDropdown(false);
+                            setFormData({
+                              ...formData, 
+                              property_id: property.id,
+                              property_name: property.name,
+                              landlord_id: property.landlord_id || 'none'
+                            });
+                          }}
+                        >
+                          <div className="font-medium">{property.name}</div>
+                          <div className="text-gray-500">ID: {property.short_id || property.id} | {property.address}</div>
+                        </div>
+                      ))}
+                      {filteredProperties.length === 0 && (
+                        <div className="p-2 text-gray-500 text-sm">No properties found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="monthly_rent">Monthly Rent</Label>
@@ -581,20 +678,67 @@ export const AgentTenants = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit_landlord">Landlord</Label>
-                <Select value={formData.landlord_id} onValueChange={(value) => setFormData({...formData, landlord_id: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a landlord" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No landlord assigned</SelectItem>
-                    {landlords.map((landlord) => (
-                      <SelectItem key={landlord.id} value={landlord.id}>
-                        {landlord.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="edit_property">Property Search</Label>
+                <div className="relative" ref={propertySearchRef}>
+                  <Input
+                    id="edit_property"
+                    value={propertySearchTerm}
+                    onChange={(e) => {
+                      setPropertySearchTerm(e.target.value);
+                      setShowPropertyDropdown(e.target.value.length > 0);
+                      // Find matching property and update formData
+                      const matchingProperty = properties.find(p => 
+                        p.name.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                        p.short_id?.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                        p.id.toString().includes(e.target.value)
+                      );
+                      
+                      if (matchingProperty) {
+                        setFormData({
+                          ...formData, 
+                          property_id: matchingProperty.id,
+                          property_name: matchingProperty.name,
+                          landlord_id: matchingProperty.landlord_id || 'none'
+                        });
+                      } else {
+                        setFormData({
+                          ...formData, 
+                          property_id: 'none',
+                          property_name: e.target.value,
+                          landlord_id: 'none'
+                        });
+                      }
+                    }}
+                    onFocus={() => setShowPropertyDropdown(propertySearchTerm.length > 0)}
+                    placeholder="Search by property name or ID"
+                  />
+                  {showPropertyDropdown && propertySearchTerm && (
+                    <div className="absolute top-full left-0 right-0 bg-white border rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
+                      {filteredProperties.map((property) => (
+                        <div
+                          key={property.id}
+                          className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          onClick={() => {
+                            setPropertySearchTerm(property.name);
+                            setShowPropertyDropdown(false);
+                            setFormData({
+                              ...formData, 
+                              property_id: property.id,
+                              property_name: property.name,
+                              landlord_id: property.landlord_id || 'none'
+                            });
+                          }}
+                        >
+                          <div className="font-medium">{property.name}</div>
+                          <div className="text-gray-500">ID: {property.short_id || property.id} | {property.address}</div>
+                        </div>
+                      ))}
+                      {filteredProperties.length === 0 && (
+                        <div className="p-2 text-gray-500 text-sm">No properties found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit_tenant_status">Status</Label>

@@ -66,13 +66,16 @@ import {
   Grid3X3,
   DoorOpen,
   TreePine,
-  Trash2
+  Trash2,
+  Building,
+  DollarSign
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { AgentMaintenanceDetail } from '@/components/pages/agent/AgentMaintenanceDetail';
 import { getAllWorkers, getFavoriteWorkers, getWorkersByCategory, getWorkerById, deleteWorker } from '@/data/workers';
 import { ErrorBoundary } from 'react-error-boundary';
+import { tenantService } from '@/lib/tenantService';
 
 // Issue categories mapping to match database
 const issueCategories = {
@@ -172,6 +175,13 @@ const AgentDashboardContent = () => {
   const [tickets, setTickets] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState({
+    totalProperties: 0,
+    totalLandlords: 0,
+    totalTenants: 0,
+    occupancyRate: 0,
+    totalRevenue: 0
+  });
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [selectedTicketForAssign, setSelectedTicketForAssign] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -196,13 +206,24 @@ const AgentDashboardContent = () => {
   });
   const { toast } = useToast();
 
+  // Fetch dashboard statistics
+  const fetchDashboardStats = async () => {
+    try {
+      const stats = await tenantService.getAgentDashboardStats();
+      setDashboardStats(stats);
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
         setLoading(true);
         await Promise.all([
           fetchMaintenanceRequests(),
-          fetchWorkers()
+          fetchWorkers(),
+          fetchDashboardStats()
         ]);
       } catch (error) {
         console.error('Error initializing dashboard:', error);
@@ -992,7 +1013,7 @@ const AgentDashboardContent = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
@@ -1041,6 +1062,19 @@ const AgentDashboardContent = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">My Tickets</p>
                 <p className="text-2xl font-bold">{getMyTickets().length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Building className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-muted-foreground">Properties</p>
+                <p className="text-2xl font-bold">{dashboardStats.totalProperties}</p>
               </div>
             </div>
           </CardContent>

@@ -10,6 +10,9 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 
+// Import auth utility for global access
+import "@/utils/clearAuth";
+
 // Import page components
 import { TenantMaintenance } from "@/components/pages/tenant/TenantMaintenance";
 import { TenantPayments } from "@/components/pages/tenant/TenantPayments";
@@ -18,6 +21,7 @@ import { AgentTickets } from "@/components/pages/agent/AgentTickets";
 import { AgentWorkers } from "@/components/pages/agent/AgentWorkers";
 import { AgentTenants } from "@/components/pages/agent/AgentTenants";
 import { AgentLandlords } from "@/components/pages/agent/AgentLandlords";
+import { AgentProperties } from "@/components/pages/agent/AgentProperties";
 import { AgentMessages } from "@/components/pages/agent/AgentMessages";
 import { AgentInvoices } from "@/components/pages/agent/AgentInvoices";
 import { LandlordMaintenance } from "@/components/pages/landlord/LandlordMaintenance";
@@ -102,6 +106,16 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <AgentLandlords />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agent-properties"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentProperties />
             </Layout>
           </ProtectedRoute>
         }

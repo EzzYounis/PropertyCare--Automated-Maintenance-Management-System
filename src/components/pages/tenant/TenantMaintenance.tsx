@@ -44,9 +44,15 @@ export const TenantMaintenance = () => {
 
   const fetchMaintenanceRequests = async () => {
     try {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('maintenance_requests')
         .select('*')
+        .eq('tenant_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -68,7 +74,7 @@ export const TenantMaintenance = () => {
 
   useEffect(() => {
     fetchMaintenanceRequests();
-  }, []);
+  }, [user?.id]);
 
   const getPriorityBadge = (priority: string) => {
     const config = priorities.find(p => p.value === priority);
