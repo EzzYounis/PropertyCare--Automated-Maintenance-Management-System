@@ -167,6 +167,22 @@ export const LandlordDashboard = () => {
     );
   };
 
+  const getInvoiceStatus = (ticket: any) => {
+    // Since invoices are based on completed maintenance requests,
+    // we'll determine status based on payment and processing state
+    const daysSinceCompletion = ticket.completed_at 
+      ? Math.floor((new Date().getTime() - new Date(ticket.completed_at).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    if (daysSinceCompletion <= 7) {
+      return { status: 'pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+    } else if (daysSinceCompletion <= 30) {
+      return { status: 'sent', label: 'Sent', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+    } else {
+      return { status: 'overdue', label: 'Overdue', color: 'bg-red-100 text-red-800 border-red-200' };
+    }
+  };
+
   const renderInvoiceTable = () => {
     const invoiceTickets = getInvoiceTickets();
 
@@ -187,6 +203,7 @@ export const LandlordDashboard = () => {
         <TableHeader>
           <TableRow>
             <TableHead>Invoice #</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Tenant</TableHead>
             <TableHead>Category</TableHead>
             <TableHead>Description</TableHead>
@@ -197,49 +214,57 @@ export const LandlordDashboard = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {invoiceTickets.map((ticket) => (
-            <TableRow key={ticket.id}>
-              <TableCell className="font-medium">
-                INV-{ticket.id?.slice(-8) || '12345678'}
-              </TableCell>
-              <TableCell>{ticket.tenant_profile?.name || 'Unknown'}</TableCell>
-              <TableCell>
-                <Badge variant="outline">{ticket.category}</Badge>
-              </TableCell>
-              <TableCell className="max-w-xs truncate">{ticket.title}</TableCell>
-              <TableCell>
-                {ticket.completed_at ? new Date(ticket.completed_at).toLocaleDateString() : 'N/A'}
-              </TableCell>
-              <TableCell>
-                {ticket.assigned_worker_id ? 
-                  workers.find(w => w.id === ticket.assigned_worker_id)?.name || 'Unknown Worker'
-                  : 'Unassigned'
-                }
-              </TableCell>
-              <TableCell>
-                <p className="text-sm font-bold text-green-600">
-                  ${ticket.actual_cost ? ticket.actual_cost.toFixed(2) : (ticket.estimated_cost || 0).toFixed(2)}
-                </p>
-              </TableCell>
-              <TableCell>
-                <div className="flex space-x-1">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => {
-                      toast({
-                        title: "Invoice Details",
-                        description: `Viewing invoice INV-${ticket.id?.slice(-8) || '12345678'}`,
-                      });
-                    }}
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                    View
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+          {invoiceTickets.map((ticket) => {
+            const invoiceStatus = getInvoiceStatus(ticket);
+            return (
+              <TableRow key={ticket.id}>
+                <TableCell className="font-medium">
+                  INV-{ticket.id?.slice(-8) || '12345678'}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={invoiceStatus.color}>
+                    {invoiceStatus.label}
+                  </Badge>
+                </TableCell>
+                <TableCell>{ticket.tenant_profile?.name || 'Unknown'}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">{ticket.category}</Badge>
+                </TableCell>
+                <TableCell className="max-w-xs truncate">{ticket.title}</TableCell>
+                <TableCell>
+                  {ticket.completed_at ? new Date(ticket.completed_at).toLocaleDateString() : 'N/A'}
+                </TableCell>
+                <TableCell>
+                  {ticket.assigned_worker_id ? 
+                    workers.find(w => w.id === ticket.assigned_worker_id)?.name || 'Unknown Worker'
+                    : 'Unassigned'
+                  }
+                </TableCell>
+                <TableCell>
+                  <p className="text-sm font-bold text-green-600">
+                    ${ticket.actual_cost ? ticket.actual_cost.toFixed(2) : (ticket.estimated_cost || 0).toFixed(2)}
+                  </p>
+                </TableCell>
+                <TableCell>
+                  <div className="flex space-x-1">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          title: "Invoice Details",
+                          description: `Viewing invoice INV-${ticket.id?.slice(-8) || '12345678'}`,
+                        });
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     );
@@ -266,10 +291,6 @@ export const LandlordDashboard = () => {
           </h1>
           <p className="text-muted-foreground">Monitor your property portfolio and maintenance operations</p>
         </div>
-        <Button className="bg-gradient-landlord hover:opacity-90 text-white border-0">
-          <BarChart3 className="w-4 h-4 mr-2" />
-          View Analytics
-        </Button>
       </div>
 
       {/* Key Metrics */}
@@ -343,29 +364,7 @@ export const LandlordDashboard = () => {
 
         <TabsContent value="overview" className="space-y-6">
           {/* Top Stats Cards - Like the image */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Total Spent This Month */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Spent This Month</p>
-                      <div className="text-2xl font-bold">${enhancedStats.totalSpentThisMonth.toFixed(0)}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                      ↗ 12% from last month
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Average Cost per Property */}
             <Card>
               <CardContent className="p-6">

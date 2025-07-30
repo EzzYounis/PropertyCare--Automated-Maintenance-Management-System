@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -260,6 +261,8 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    special_circumstances: 'none',
+    other_circumstances: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -278,6 +281,8 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
     setFormData({
       title: '',
       description: '',
+      special_circumstances: 'none',
+      other_circumstances: ''
     });
   };
 
@@ -330,6 +335,21 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
     setIsSubmitting(true);
 
     try {
+      // Prepare special circumstances text
+      let specialCircumstancesText = '';
+      if (formData.special_circumstances === 'other' && formData.other_circumstances) {
+        specialCircumstancesText = formData.other_circumstances;
+      } else if (formData.special_circumstances && formData.special_circumstances !== '') {
+        // Convert the selected value to readable text
+        const circumstanceLabels = {
+          'pregnant_resident': 'Pregnant resident',
+          'baby_in_house': 'Baby/newborn in house',
+          'family_with_children': 'Family with children',
+          'single': 'Single',
+        };
+        specialCircumstancesText = circumstanceLabels[formData.special_circumstances as keyof typeof circumstanceLabels] || formData.special_circumstances;
+      }
+
       const { data, error } = await supabase
         .from('maintenance_requests')
         .insert([
@@ -346,23 +366,60 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
             preferred_time_slots: selectedTimeSlots,
             preferred_date: preferredDate ? format(preferredDate, 'yyyy-MM-dd') : null,
             photos: [], // For now, just empty array - can implement file upload later
+            ...(specialCircumstancesText && { special_circumstances: specialCircumstancesText }),
           }
         ])
         .select()
         .single();
 
       if (error) {
-        throw error;
-      }
+        // If the error is about missing special_circumstances column, try without it
+        if (error.code === 'PGRST204' && error.message.includes('special_circumstances')) {
+          console.log('special_circumstances column not found, submitting without it...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('maintenance_requests')
+            .insert([
+              {
+                tenant_id: user.id,
+                title: formData.title,
+                description: formData.description,
+                category: selectedCategory.name,
+                subcategory: selectedSubcategory || null,
+                priority: selectedPriority,
+                status: 'submitted',
+                room: selectedRoom || null,
+                quick_fixes: quickFixesCompleted,
+                preferred_time_slots: selectedTimeSlots,
+                preferred_date: preferredDate ? format(preferredDate, 'yyyy-MM-dd') : null,
+                photos: [],
+              }
+            ])
+            .select()
+            .single();
 
-      // Call the callback to refresh the list
-      if (onIssueSubmitted) {
-        onIssueSubmitted(data);
+          if (fallbackError) {
+            throw fallbackError;
+          }
+          
+          // Use fallback data for success case
+          if (onIssueSubmitted) {
+            onIssueSubmitted(fallbackData);
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        // Call the callback to refresh the list
+        if (onIssueSubmitted) {
+          onIssueSubmitted(data);
+        }
       }
 
       toast({
         title: "Issue Reported Successfully!",
-        description: "Your maintenance request has been submitted and will be reviewed shortly.",
+        description: specialCircumstancesText && error?.code === 'PGRST204' 
+          ? "Your maintenance request has been submitted. Note: Special circumstances will be available after the next system update."
+          : "Your maintenance request has been submitted and will be reviewed shortly.",
       });
 
       resetForm();
@@ -535,6 +592,36 @@ export const EnhancedReportIssueDialog: React.FC<EnhancedReportIssueDialogProps>
                 />
                 <div className="text-xs text-muted-foreground text-right">
                   {formData.description.length}/500 characters
+                </div>
+              </div>
+
+              {/* Special Circumstances */}
+              <div className="space-y-2">
+                <Label htmlFor="special_circumstances">Special Circumstances or Warnings</Label>
+                <Select value={formData.special_circumstances} onValueChange={(value) => setFormData({...formData, special_circumstances: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select if applicable (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="pregnant_resident">Pregnant resident</SelectItem>
+                    <SelectItem value="baby_in_house">Baby/newborn in house</SelectItem>
+                    <SelectItem value="family_with_children">Family with children</SelectItem>
+                    <SelectItem value="single">Single</SelectItem>
+                    <SelectItem value="other">Other (specify below)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {formData.special_circumstances === 'other' && (
+                  <div className="mt-2">
+                    <Input
+                      placeholder="Please specify other circumstances..."
+                      value={formData.other_circumstances || ''}
+                      onChange={(e) => setFormData({...formData, other_circumstances: e.target.value})}
+                    />
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground">
+                  Help agents provide better service by informing them of any special situations
                 </div>
               </div>
             </div>

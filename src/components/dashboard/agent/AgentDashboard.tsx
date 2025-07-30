@@ -244,46 +244,11 @@ const AgentDashboardContent = () => {
     try {
       setLoading(true);
       
-      // First get maintenance requests
-      const { data: requests, error: requestsError } = await supabase
-        .from('maintenance_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (requestsError) {
-        console.error('Error fetching maintenance requests:', requestsError);
-        toast({
-          title: "Error",
-          description: "Failed to load maintenance requests",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Then get profiles for each request
-      if (requests && requests.length > 0) {
-        const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('id', tenantIds);
-
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        }
-
-        // Combine the data
-        const requestsWithProfiles = requests.map(request => ({
-          ...request,
-          tenant_profile: profiles?.find(p => p.id === request.tenant_id) || null
-        }));
-
-        setTickets(requestsWithProfiles);
-      } else {
-        setTickets([]);
-      }
+      // Use the enhanced service function to get maintenance requests with detailed info
+      const requests = await tenantService.getMaintenanceRequestsWithDetails();
+      setTickets(requests || []);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching maintenance requests:', error);
       toast({
         title: "Error", 
         description: "An unexpected error occurred",
@@ -800,6 +765,7 @@ const AgentDashboardContent = () => {
             <TableHead>Tenant Name</TableHead>
             <TableHead>Tenant Phone</TableHead>
             <TableHead>Property Address</TableHead>
+            <TableHead>Landlord Contact</TableHead>
             <TableHead>Priority</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Assigned Worker</TableHead>
@@ -831,6 +797,14 @@ const AgentDashboardContent = () => {
               </TableCell>
               <TableCell>
                 <p className="text-sm">{ticket.tenant_profile?.address || ticket.property_address || ticket.tenant_address || 'Address Not Available'}</p>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm">
+                  <p className="font-medium">{ticket.landlord_profile?.name || 'No Landlord Info'}</p>
+                  {ticket.landlord_profile?.phone && (
+                    <p className="text-muted-foreground">{ticket.landlord_profile.phone}</p>
+                  )}
+                </div>
               </TableCell>
               <TableCell>
                 <Badge 

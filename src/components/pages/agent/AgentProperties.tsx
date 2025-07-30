@@ -56,12 +56,21 @@ export const AgentProperties = () => {
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<PropertyWithLandlord | null>(null);
   const [editFormData, setEditFormData] = useState({
     name: '',
     address: '',
     type: '',
     units: '',
+    rent_per_unit: '',
+    status: 'available'
+  });
+  const [addFormData, setAddFormData] = useState({
+    name: '',
+    address: '',
+    type: '',
+    landlord_id: 'none',
     rent_per_unit: '',
     status: 'available'
   });
@@ -268,6 +277,17 @@ export const AgentProperties = () => {
     setSelectedProperty(null);
   };
 
+  const resetAddForm = () => {
+    setAddFormData({
+      name: '',
+      address: '',
+      type: '',
+      landlord_id: 'none',
+      rent_per_unit: '',
+      status: 'available'
+    });
+  };
+
   const handleEditProperty = async () => {
     if (!selectedProperty) return;
 
@@ -309,6 +329,55 @@ export const AgentProperties = () => {
     }
   };
 
+  const handleAddProperty = async () => {
+    try {
+      // Validate required fields
+      if (!addFormData.name || !addFormData.address || !addFormData.type) {
+        toast({
+          title: 'Error',
+          description: 'Please fill in all required fields (Name, Address, Type).',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Map display status back to database status
+      let dbStatus = addFormData.status;
+      if (addFormData.status === 'occupied') {
+        dbStatus = 'active';
+      } else if (addFormData.status === 'available') {
+        dbStatus = 'inactive';
+      }
+
+      const propertyData = {
+        name: addFormData.name,
+        address: addFormData.address,
+        type: addFormData.type,
+        landlord_id: addFormData.landlord_id === 'none' ? undefined : addFormData.landlord_id,
+        rent_per_unit: addFormData.rent_per_unit ? parseFloat(addFormData.rent_per_unit) : undefined,
+        status: dbStatus,
+      };
+
+      await tenantService.createProperty(propertyData);
+      await loadData();
+      setIsAddModalOpen(false);
+      resetAddForm();
+      
+      toast({
+        title: 'Success',
+        description: `Property "${addFormData.name}" has been created successfully.`,
+      });
+    } catch (error) {
+      console.error('Error creating property:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create property. Please try again.';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -332,7 +401,7 @@ export const AgentProperties = () => {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setIsAddModalOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Property
           </Button>
@@ -719,6 +788,109 @@ export const AgentProperties = () => {
               disabled={!editFormData.name || !editFormData.address || !editFormData.type}
             >
               Update Property
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Property Modal */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Property</DialogTitle>
+            <DialogDescription>
+              Add a new property to the system.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add_property_name">Property Name *</Label>
+                <Input
+                  id="add_property_name"
+                  value={addFormData.name}
+                  onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
+                  placeholder="Enter property name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add_property_type">Property Type *</Label>
+                <Select value={addFormData.type} onValueChange={(value) => setAddFormData({...addFormData, type: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select property type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="apartment">Apartment</SelectItem>
+                    <SelectItem value="house">House</SelectItem>
+                    <SelectItem value="condo">Condo</SelectItem>
+                    <SelectItem value="studio">Studio</SelectItem>
+                    <SelectItem value="townhouse">Townhouse</SelectItem>
+                    <SelectItem value="duplex">Duplex</SelectItem>
+                    <SelectItem value="commercial">Commercial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="add_property_address">Property Address *</Label>
+                <Input
+                  id="add_property_address"
+                  value={addFormData.address}
+                  onChange={(e) => setAddFormData({...addFormData, address: e.target.value})}
+                  placeholder="Enter full property address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add_property_landlord">Landlord</Label>
+                <Select value={addFormData.landlord_id} onValueChange={(value) => setAddFormData({...addFormData, landlord_id: value === 'none' ? '' : value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select landlord (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Landlord</SelectItem>
+                    {landlords.map((landlord) => (
+                      <SelectItem key={landlord.id} value={landlord.id}>
+                        {landlord.name} ({landlord.username})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add_property_rent">Monthly Rent ($)</Label>
+                <Input
+                  id="add_property_rent"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={addFormData.rent_per_unit}
+                  onChange={(e) => setAddFormData({...addFormData, rent_per_unit: e.target.value})}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add_property_status">Status</Label>
+                <Select value={addFormData.status} onValueChange={(value) => setAddFormData({...addFormData, status: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="available">Available</SelectItem>
+                    <SelectItem value="occupied">Occupied</SelectItem>
+                    <SelectItem value="maintenance">Under Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddProperty} 
+              disabled={!addFormData.name || !addFormData.address || !addFormData.type}
+            >
+              Add Property
             </Button>
           </DialogFooter>
         </DialogContent>

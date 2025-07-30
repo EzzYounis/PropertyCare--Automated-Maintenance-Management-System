@@ -238,6 +238,17 @@ export const MaintenanceDetail: React.FC<MaintenanceDetailProps> = ({
                   </label>
                   <p className="text-sm">{issue.description}</p>
                 </div>
+                {issue.special_circumstances && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                      <label className="text-sm font-medium text-amber-800">
+                        Special Circumstances:
+                      </label>
+                    </div>
+                    <p className="text-sm text-amber-700">{issue.special_circumstances}</p>
+                  </div>
+                )}
 
                 <div className="flex gap-4">
                   <div>

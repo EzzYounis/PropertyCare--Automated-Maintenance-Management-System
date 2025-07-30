@@ -384,9 +384,6 @@ export const AgentLandlords = () => {
                   </TableCell>
                   <TableCell>
                     <div className="font-semibold">{landlord.total_properties || 0} Properties</div>
-                    <div className="text-sm text-muted-foreground">
-                      ${landlord.total_revenue || 0} revenue
-                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={landlord.status === 'active' ? 'default' : 'secondary'}>

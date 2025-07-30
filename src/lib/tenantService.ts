@@ -67,6 +67,38 @@ export interface Property {
   updated_at: string;
 }
 
+export interface MaintenanceRequest {
+  id: string;
+  tenant_id: string;
+  title: string;
+  description?: string;
+  category: string;
+  subcategory?: string;
+  priority: string;
+  status: string;
+  room?: string;
+  photos?: string[];
+  quick_fixes?: string[];
+  preferred_time_slots?: string[];
+  preferred_date?: string;
+  agent_notes?: string;
+  landlord_notes?: string;
+  estimated_cost?: number;
+  actual_cost?: number;
+  additional_cost?: number;
+  additional_cost_description?: string;
+  completion_notes?: string;
+  estimated_time?: string;
+  quote_description?: string;
+  assigned_worker_id?: string;
+  tenant_name?: string;
+  tenant_email?: string;
+  tenant_phone?: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+}
+
 export interface CreateTenantData {
   name: string;
   username: string;
@@ -127,6 +159,8 @@ const tenantServiceObject = {
   // Get all tenants
   async getTenants(): Promise<TenantProfile[]> {
     try {
+      console.log('Fetching tenants from profiles table...');
+      
       // Get data from unified profiles table for tenants
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles' as any)
@@ -155,8 +189,11 @@ const tenantServiceObject = {
 
       if (profilesError) {
         console.error('Error fetching tenant profiles:', profilesError);
+        console.error('Profiles error details:', JSON.stringify(profilesError, null, 2));
         return [];
       }
+
+      console.log(`Found ${profiles?.length || 0} tenant profiles`);
 
       // Transform the data to match TenantProfile interface
       const tenants = (profiles || []).map((profile: any) => ({
@@ -274,23 +311,37 @@ const tenantServiceObject = {
     try {
       // If assigning to a property, check if another tenant is already assigned
       if (tenantData.property_id) {
-        const { data: existingTenant, error: checkError } = await supabase
-          .from('profiles' as any)
-          .select('id, name')
-          .eq('property_id', tenantData.property_id)
-          .eq('role', 'tenant')
-          .single();
+        try {
+          // Use a more robust query to check for existing tenants
+          const { data: existingTenants, error: checkError } = await supabase
+            .from('profiles' as any)
+            .select('id, name')
+            .eq('property_id', tenantData.property_id)
+            .eq('role', 'tenant')
+            .eq('tenant_status', 'active');
 
-        if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
-          console.error('Error checking existing tenant:', checkError);
-        }
+          if (checkError) {
+            console.error('Error checking existing tenant:', checkError);
+            console.error('Error details:', JSON.stringify(checkError, null, 2));
+            // Don't throw error here, just log it and continue
+          }
 
-        if (existingTenant) {
-          throw new Error(`Property is already occupied by another tenant: ${(existingTenant as any).name}`);
+          // Check if there are any active tenants
+          if (existingTenants && existingTenants.length > 0) {
+            const existingTenant = existingTenants[0] as any;
+            throw new Error(`Property is already occupied by another tenant: ${existingTenant.name || 'Unknown tenant'}`);
+          }
+        } catch (checkTenantError) {
+          console.error('Exception during tenant check:', checkTenantError);
+          // Continue with creation - don't let tenant check block the process
         }
       }
 
-      // First create the user in Supabase Auth
+      // Store current session to restore later
+      const currentSession = await supabase.auth.getSession();
+      const currentUser = currentSession.data.session?.user;
+      
+      // Create the user in Supabase Auth using admin function to avoid automatic sign-in
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: `${tenantData.username}@propertycare.app`,
         password: tenantData.password,
@@ -312,32 +363,99 @@ const tenantServiceObject = {
         throw new Error('Failed to create user account');
       }
 
-      // Insert into profiles table with all tenant data
-      const { error: profileError } = await supabase
-        .from('profiles' as any)
-        .insert({
-          id: authData.user.id,
-          username: tenantData.username,
-          name: tenantData.name,
-          email: tenantData.email || `${tenantData.username}@propertycare.app`,
-          phone: tenantData.phone,
-          address: tenantData.address,
-          role: 'tenant',
-          property_id: tenantData.property_id,
-          landlord_id: tenantData.landlord_id,
-          lease_start: tenantData.lease_start,
-          lease_end: tenantData.lease_end,
-          monthly_rent: tenantData.monthly_rent,
-          emergency_contact_name: tenantData.emergency_contact_name,
-          emergency_contact_phone: tenantData.emergency_contact_phone,
-          tenant_status: tenantData.tenant_status || 'active',
-          status: 'active'
-        });
+      // Always sign out the newly created user to ensure we don't stay logged in as them
+      await supabase.auth.signOut();
+      
+      // Restore the original session if it existed
+      if (currentSession.data.session && currentUser) {
+        try {
+          const { error: restoreError } = await supabase.auth.setSession({
+            access_token: currentSession.data.session.access_token,
+            refresh_token: currentSession.data.session.refresh_token
+          });
+          
+          if (restoreError) {
+            console.error('Error restoring session:', restoreError);
+            // If session restoration fails, try to refresh the session
+            const { error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+              console.error('Error refreshing session:', refreshError);
+            }
+          }
+        } catch (sessionError) {
+          console.error('Session restoration failed:', sessionError);
+        }
+      }
+
+      // Small delay to ensure session restoration is complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Update the automatically created profile with all tenant data
+      // First check if profile already exists
+      let existingProfile = null;
+      let checkProfileError = null;
+      
+      try {
+        const result = await supabase
+          .from('profiles' as any)
+          .select('id')
+          .eq('id', authData.user.id)
+          .single();
+        
+        existingProfile = result.data;
+        checkProfileError = result.error;
+      } catch (err) {
+        console.error('Error checking existing profile:', err);
+        checkProfileError = err;
+      }
+
+      const profileData = {
+        username: tenantData.username,
+        name: tenantData.name,
+        email: tenantData.email || `${tenantData.username}@propertycare.app`,
+        phone: tenantData.phone,
+        address: tenantData.address,
+        role: 'tenant',
+        property_id: tenantData.property_id,
+        landlord_id: tenantData.landlord_id,
+        lease_start: tenantData.lease_start,
+        lease_end: tenantData.lease_end,
+        monthly_rent: tenantData.monthly_rent,
+        emergency_contact_name: tenantData.emergency_contact_name,
+        emergency_contact_phone: tenantData.emergency_contact_phone,
+        tenant_status: tenantData.tenant_status || 'active',
+        status: 'active'
+      };
+
+      let profileError;
+      
+      if (existingProfile || (checkProfileError && checkProfileError.code !== 'PGRST116')) {
+        // Profile exists, update it
+        console.log('Updating existing profile for user:', authData.user.id);
+        const { error } = await supabase
+          .from('profiles' as any)
+          .update(profileData)
+          .eq('id', authData.user.id);
+        profileError = error;
+      } else {
+        // Profile doesn't exist, create it
+        console.log('Creating new profile for user:', authData.user.id);
+        const { error } = await supabase
+          .from('profiles' as any)
+          .insert({
+            id: authData.user.id,
+            ...profileData
+          });
+        profileError = error;
+      }
 
       if (profileError) {
-        console.error('Profile creation error:', profileError);
-        throw new Error(`Failed to create tenant profile: ${profileError.message}`);
+        console.error('Profile update/insert error:', profileError);
+        console.error('Profile error details:', JSON.stringify(profileError, null, 2));
+        throw new Error(`Failed to update tenant profile: ${profileError.message}`);
       }
+
+      console.log('Successfully created/updated tenant profile for:', tenantData.username);
 
       // Update property status if tenant was assigned to a property
       if (tenantData.property_id) {
@@ -345,6 +463,7 @@ const tenantServiceObject = {
       }
     } catch (error) {
       console.error('Error creating tenant:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       throw error;
     }
   },
@@ -438,39 +557,133 @@ const tenantServiceObject = {
   // Delete tenant
   async deleteTenant(tenantId: string): Promise<void> {
     try {
+      console.log('Starting tenant deletion process for ID:', tenantId);
+      
       // Get the tenant's property assignment before deletion
       let propertyId: string | null = null;
+      let tenantData: any = null;
+      
       try {
         const { data: tenant, error: getTenantError } = await supabase
           .from('profiles' as any)
-          .select('property_id')
+          .select('property_id, username, email')
           .eq('id', tenantId)
           .eq('role', 'tenant')
           .single();
 
         if (!getTenantError && tenant) {
           propertyId = (tenant as any).property_id;
+          tenantData = tenant;
+          console.log('Found tenant data before deletion:', tenantData);
+        } else if (getTenantError) {
+          console.error('Error getting tenant data:', getTenantError);
+          // If we can't find the tenant, it might already be deleted
+          if (getTenantError.code === 'PGRST116') {
+            console.log('Tenant not found - might already be deleted');
+            return;
+          }
         }
       } catch (err) {
         console.warn('Could not get tenant property assignment before deletion:', err);
       }
 
+      // Check for related maintenance requests before deletion
+      try {
+        const { data: maintenanceRequests, error: maintError } = await supabase
+          .from('maintenance_requests')
+          .select('id, title, status')
+          .eq('tenant_id', tenantId);
+
+        if (maintError) {
+          console.warn('Could not check maintenance requests:', maintError);
+        } else if (maintenanceRequests && maintenanceRequests.length > 0) {
+          console.log(`Found ${maintenanceRequests.length} maintenance requests for tenant`);
+          
+          // Delete all maintenance requests for this tenant
+          // This is necessary because tenant_id has NOT NULL constraint
+          const { error: deleteRequestsError } = await supabase
+            .from('maintenance_requests')
+            .delete()
+            .eq('tenant_id', tenantId);
+          
+          if (deleteRequestsError) {
+            console.error('Could not delete maintenance requests:', deleteRequestsError);
+            throw new Error(`Cannot delete tenant: Unable to delete ${maintenanceRequests.length} maintenance requests. Error: ${deleteRequestsError.message}`);
+          } else {
+            console.log(`Successfully deleted ${maintenanceRequests.length} maintenance requests`);
+          }
+        }
+      } catch (maintErr) {
+        console.warn('Error handling maintenance requests:', maintErr);
+      }
+
       // Delete from profiles table (contains all tenant data)
-      const { error } = await supabase
+      console.log('Deleting tenant from profiles table...');
+      const { error: profileDeleteError } = await supabase
         .from('profiles' as any)
         .delete()
         .eq('id', tenantId);
 
-      if (error) {
-        throw new Error(`Failed to delete tenant: ${error.message}`);
+      if (profileDeleteError) {
+        console.error('Error deleting from profiles table:', profileDeleteError);
+        console.error('Profile delete error details:', JSON.stringify(profileDeleteError, null, 2));
+        throw new Error(`Failed to delete tenant profile: ${profileDeleteError.message}`);
       }
+
+      console.log('Successfully deleted tenant from profiles table');
+
+      // Note: We cannot delete users from Supabase Auth using the client library
+      // This would require admin privileges or a server-side function
+      // The user will still exist in auth.users but won't have a profile
 
       // Update property status if tenant was assigned to a property
       if (propertyId) {
+        console.log('Updating property status for property:', propertyId);
         await this.updatePropertyStatus(propertyId);
       }
+
+      console.log('Tenant deletion completed successfully');
     } catch (error) {
       console.error('Error deleting tenant:', error);
+      console.error('Delete error details:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+  },
+
+  // Helper function to verify if a tenant exists (for debugging)
+  async verifyTenantExists(tenantId: string): Promise<boolean> {
+    try {
+      const { data: tenant, error } = await supabase
+        .from('profiles' as any)
+        .select('id, username, role')
+        .eq('id', tenantId)
+        .eq('role', 'tenant')
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking tenant existence:', error);
+        return false;
+      }
+
+      const exists = !!tenant;
+      console.log(`Tenant ${tenantId} exists:`, exists, tenant ? `(${(tenant as any).username})` : '');
+      return exists;
+    } catch (error) {
+      console.error('Exception checking tenant existence:', error);
+      return false;
+    }
+  },
+
+  // Force refresh tenant list (useful after deletion)
+  async refreshTenants(): Promise<TenantProfile[]> {
+    try {
+      console.log('Refreshing tenant list...');
+      // Clear any potential cache and fetch fresh data
+      const tenants = await this.getTenants();
+      console.log(`Refreshed tenant list: ${tenants.length} tenants found`);
+      return tenants;
+    } catch (error) {
+      console.error('Error refreshing tenants:', error);
       throw error;
     }
   },
@@ -489,7 +702,11 @@ const tenantServiceObject = {
     }
 
     try {
-      // First create the user in Supabase Auth
+      // Store current session to restore later
+      const currentSession = await supabase.auth.getSession();
+      const currentUser = currentSession.data.session?.user;
+      
+      // Create the user in Supabase Auth using admin function to avoid automatic sign-in
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: `${landlordData.username}@propertycare.app`,
         password: landlordData.password,
@@ -511,31 +728,82 @@ const tenantServiceObject = {
         throw new Error('Failed to create user account');
       }
 
-      // Insert into profiles table with all landlord data
-      const { error: profileError } = await supabase
+      // Always sign out the newly created user to ensure we don't stay logged in as them
+      await supabase.auth.signOut();
+      
+      // Restore the original session if it existed
+      if (currentSession.data.session && currentUser) {
+        try {
+          const { error: restoreError } = await supabase.auth.setSession({
+            access_token: currentSession.data.session.access_token,
+            refresh_token: currentSession.data.session.refresh_token
+          });
+          
+          if (restoreError) {
+            console.error('Error restoring session:', restoreError);
+            // If session restoration fails, try to refresh the session
+            const { error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+              console.error('Error refreshing session:', refreshError);
+            }
+          }
+        } catch (sessionError) {
+          console.error('Session restoration failed:', sessionError);
+        }
+      }
+
+      // Small delay to ensure session restoration is complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Update the automatically created profile with all landlord data
+      // First check if profile already exists
+      const { data: existingProfile, error: checkProfileError } = await supabase
         .from('profiles' as any)
-        .insert({
-          id: authData.user.id,
-          username: landlordData.username,
-          name: landlordData.name,
-          email: landlordData.email || `${landlordData.username}@propertycare.app`,
-          phone: landlordData.phone,
-          address: landlordData.address,
-          role: 'landlord',
-          company_name: landlordData.company_name,
-          business_email: landlordData.business_email,
-          business_phone: landlordData.business_phone,
-          business_address: landlordData.business_address,
-          license_number: landlordData.license_number,
-          preferred_payment_method: landlordData.preferred_payment_method,
-          total_properties: 0,
-          total_revenue: 0,
-          status: 'active'
-        });
+        .select('id')
+        .eq('id', authData.user.id)
+        .single();
+
+      const profileData = {
+        username: landlordData.username,
+        name: landlordData.name,
+        email: landlordData.email || `${landlordData.username}@propertycare.app`,
+        phone: landlordData.phone,
+        address: landlordData.address,
+        role: 'landlord',
+        company_name: landlordData.company_name,
+        business_email: landlordData.business_email,
+        business_phone: landlordData.business_phone,
+        business_address: landlordData.business_address,
+        license_number: landlordData.license_number,
+        preferred_payment_method: landlordData.preferred_payment_method,
+        total_properties: 0,
+        total_revenue: 0,
+        status: 'active'
+      };
+
+      let profileError;
+      
+      if (existingProfile || (checkProfileError && checkProfileError.code !== 'PGRST116')) {
+        // Profile exists, update it
+        const { error } = await supabase
+          .from('profiles' as any)
+          .update(profileData)
+          .eq('id', authData.user.id);
+        profileError = error;
+      } else {
+        // Profile doesn't exist, create it
+        const { error } = await supabase
+          .from('profiles' as any)
+          .insert({
+            id: authData.user.id,
+            ...profileData
+          });
+        profileError = error;
+      }
 
       if (profileError) {
-        console.error('Profile creation error:', profileError);
-        throw new Error(`Failed to create landlord profile: ${profileError.message}`);
+        console.error('Profile update error:', profileError);
+        throw new Error(`Failed to update landlord profile: ${profileError.message}`);
       }
     } catch (error) {
       console.error('Error creating landlord:', error);
@@ -782,7 +1050,127 @@ const tenantServiceObject = {
     }
   },
 
-  // Create a maintenance request (for testing)
+  // Get maintenance requests with detailed information including landlord contact
+  async getMaintenanceRequestsWithDetails(): Promise<any[]> {
+    try {
+      // Get all maintenance requests
+      const { data: requests, error: requestsError } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (requestsError) {
+        console.error('Error fetching maintenance requests:', requestsError);
+        return [];
+      }
+
+      if (!requests || requests.length === 0) {
+        return [];
+      }
+
+      // Get all tenant profiles to get landlord relationships
+      const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
+      const { data: tenantProfiles, error: tenantsError } = await supabase
+        .from('profiles')
+        .select('id, name, username, email, phone, landlord_id, property_id')
+        .in('id', tenantIds)
+        .eq('role', 'tenant');
+
+      if (tenantsError) {
+        console.error('Error fetching tenant profiles:', tenantsError);
+      }
+
+      // Get landlord IDs and property IDs for additional lookup
+      const landlordIds = [...new Set((tenantProfiles || [])
+        .map((t: any) => t.landlord_id)
+        .filter(Boolean))];
+      
+      const propertyIds = [...new Set((tenantProfiles || [])
+        .map((t: any) => t.property_id)
+        .filter(Boolean))];
+
+      // Get landlord profiles
+      let landlordProfiles: any[] = [];
+      if (landlordIds.length > 0) {
+        const { data: landlords, error: landlordsError } = await supabase
+          .from('profiles')
+          .select('id, name, username, email, phone')
+          .in('id', landlordIds)
+          .eq('role', 'landlord');
+
+        if (landlordsError) {
+          console.error('Error fetching landlord profiles:', landlordsError);
+        } else {
+          landlordProfiles = landlords || [];
+        }
+      }
+
+      // Get properties to get landlord IDs for tenants without direct landlord_id
+      let properties: any[] = [];
+      if (propertyIds.length > 0) {
+        const { data: props, error: propsError } = await supabase
+          .from('properties')
+          .select('id, name, address, landlord_id')
+          .in('id', propertyIds);
+
+        if (propsError) {
+          console.error('Error fetching properties:', propsError);
+        } else {
+          properties = props || [];
+        }
+      }
+
+      // Get additional landlords from properties
+      const additionalLandlordIds = [...new Set(properties
+        .map((p: any) => p.landlord_id)
+        .filter((id: any) => id && !landlordIds.includes(id)))];
+
+      if (additionalLandlordIds.length > 0) {
+        const { data: additionalLandlords, error: additionalError } = await supabase
+          .from('profiles')
+          .select('id, name, username, email, phone')
+          .in('id', additionalLandlordIds)
+          .eq('role', 'landlord');
+
+        if (!additionalError && additionalLandlords) {
+          landlordProfiles = [...landlordProfiles, ...additionalLandlords];
+        }
+      }
+
+      // Combine all the data
+      const enhancedRequests = requests.map((request: any) => {
+        const tenantProfile = tenantProfiles?.find((t: any) => t.id === request.tenant_id);
+        let landlordProfile = null;
+        
+        if (tenantProfile) {
+          // Try to get landlord directly from tenant
+          if ((tenantProfile as any).landlord_id) {
+            landlordProfile = landlordProfiles.find((l: any) => l.id === (tenantProfile as any).landlord_id);
+          }
+          
+          // If no direct landlord, try through property
+          if (!landlordProfile && (tenantProfile as any).property_id) {
+            const property = properties.find((p: any) => p.id === (tenantProfile as any).property_id);
+            if (property && (property as any).landlord_id) {
+              landlordProfile = landlordProfiles.find((l: any) => l.id === (property as any).landlord_id);
+            }
+          }
+        }
+
+        return {
+          ...request,
+          tenant_profile: tenantProfile,
+          landlord_profile: landlordProfile,
+          landlord_id: landlordProfile?.id || null
+        };
+      });
+
+      return enhancedRequests;
+    } catch (error) {
+      console.error('Error in getMaintenanceRequestsWithDetails:', error);
+      return [];
+    }
+  },
   async createMaintenanceRequest(requestData: {
     tenant_id: string;
     title: string;
@@ -812,6 +1200,37 @@ const tenantServiceObject = {
     } catch (error) {
       console.error('Error in createMaintenanceRequest:', error);
       throw error;
+    }
+  },
+
+  // Get maintenance requests for a specific property
+  async getMaintenanceRequestsForProperty(propertyId: string): Promise<MaintenanceRequest[]> {
+    try {
+      // First get all tenants for this property
+      const tenants = await this.getTenants();
+      const propertyTenants = tenants.filter(t => t.property_id === propertyId);
+      
+      if (propertyTenants.length === 0) {
+        return [];
+      }
+
+      // Get maintenance requests for these tenants
+      const tenantIds = propertyTenants.map(t => t.id);
+      const { data: requests, error } = await supabase
+        .from('maintenance_requests')
+        .select('*')
+        .in('tenant_id', tenantIds)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching maintenance requests for property:', error);
+        return [];
+      }
+
+      return requests || [];
+    } catch (error) {
+      console.error('Error in getMaintenanceRequestsForProperty:', error);
+      return [];
     }
   },
 
