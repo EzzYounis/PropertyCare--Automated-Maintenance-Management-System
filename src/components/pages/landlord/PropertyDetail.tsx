@@ -221,7 +221,7 @@ export const PropertyDetail = () => {
               <p className="text-muted-foreground mb-4">
                 {error || 'The requested property could not be found.'}
               </p>
-              <Button onClick={() => navigate('/agent-properties')}>
+              <Button onClick={() => navigate('/properties')}>
                 Back to Properties
               </Button>
             </CardContent>
@@ -237,7 +237,7 @@ export const PropertyDetail = () => {
       <div className="flex items-center gap-4">
         <Button 
           variant="ghost" 
-          onClick={() => navigate('/agent-properties')}
+          onClick={() => navigate('/properties')}
           className="flex items-center gap-2"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -464,31 +464,6 @@ export const PropertyDetail = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Landlord Information */}
-              {property.landlord_name && (
-                <div>
-                  <h4 className="font-medium mb-2">Landlord Contact</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{property.landlord_name}</span>
-                    </div>
-                    {property.landlord_phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{property.landlord_phone}</span>
-                      </div>
-                    )}
-                    {property.landlord_email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{property.landlord_email}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Tenant Information */}
               {property.tenant_name ? (
