@@ -185,6 +185,7 @@ const AgentDashboardContent = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [selectedTicketForAssign, setSelectedTicketForAssign] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -653,7 +654,7 @@ const AgentDashboardContent = () => {
       console.log('Quote submitted successfully from dashboard');
 
       toast({
-        title: "Quote Submitted",
+        title: "Quote Pending",
         description: "Quote has been submitted for landlord approval.",
       });
       
@@ -717,11 +718,16 @@ const AgentDashboardContent = () => {
                            ticket.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            ticket.tenant_profile?.name?.toLowerCase().includes(searchTerm.toLowerCase());
       
+      const matchesLocation = !locationFilter || 
+                             (ticket.property_profile?.address?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+                              ticket.property_address?.toLowerCase().includes(locationFilter.toLowerCase()) ||
+                              ticket.tenant_address?.toLowerCase().includes(locationFilter.toLowerCase()));
+      
       const matchesCategory = categoryFilter === 'all' || ticket.category === categoryFilter;
       const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter;
       const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
 
-      return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
+      return matchesSearch && matchesLocation && matchesCategory && matchesPriority && matchesStatus;
     });
   };
 
@@ -764,10 +770,10 @@ const AgentDashboardContent = () => {
             <TableHead>Category</TableHead>
             <TableHead>Tenant Name</TableHead>
             <TableHead>Tenant Phone</TableHead>
-            <TableHead>Property Address</TableHead>
+            <TableHead className="text-center">Property Address</TableHead>
             <TableHead>Landlord Contact</TableHead>
-            <TableHead>Priority</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead className="text-center">Priority</TableHead>
+            <TableHead className="text-center">Status</TableHead>
             <TableHead>Assigned Worker</TableHead>
             {isAllAgencyTab && <TableHead>Claimed By</TableHead>}
             <TableHead>Actions</TableHead>
@@ -795,8 +801,8 @@ const AgentDashboardContent = () => {
               <TableCell>
                 <p className="text-sm">{ticket.tenant_profile?.phone || ticket.tenant_phone || ticket.tenant_profile?.username || 'N/A'}</p>
               </TableCell>
-              <TableCell>
-                <p className="text-sm">{ticket.tenant_profile?.address || ticket.property_address || ticket.tenant_address || 'Address Not Available'}</p>
+              <TableCell className="text-center">
+                <p className="text-sm">{ticket.property_profile?.address || ticket.property_address || ticket.tenant_address || 'Address Not Available'}</p>
               </TableCell>
               <TableCell>
                 <div className="text-sm">
@@ -806,7 +812,7 @@ const AgentDashboardContent = () => {
                   )}
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="text-center">
                 <Badge 
                   variant="outline"
                   className={
@@ -820,8 +826,8 @@ const AgentDashboardContent = () => {
                   {ticket.priority}
                 </Badge>
               </TableCell>
-              <TableCell>
-                <div className="flex items-center space-x-1">
+              <TableCell className="text-center">
+                <div className="flex items-center justify-center space-x-1">
                   {ticket.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
                   {ticket.status === 'in_process' && <Clock className="h-4 w-4 text-blue-500" />}
                   {ticket.status === 'pending_approval' && <Clock className="h-4 w-4 text-orange-500" />}
@@ -841,7 +847,7 @@ const AgentDashboardContent = () => {
                     {ticket.status === 'in_process' ? 'In Process' : 
                      ticket.status === 'submitted' ? 'Open' : 
                      ticket.status === 'pending_approval' ? 'Pending Approval' :
-                     ticket.status === 'quote_submitted' ? 'Quote Submitted' :
+                     ticket.status === 'quote_submitted' ? 'Quote Pending' :
                      ticket.status === 'rejected' ? 'Rejected - Reassign' :
                      ticket.status}
                   </span>
@@ -905,14 +911,14 @@ const AgentDashboardContent = () => {
                         </Button>
                       )}
                       {ticket.status === 'quote_submitted' && (
-                        <Button 
+                        <Button
                           type="button"
                           size="sm"
                           onClick={() => {
                             setSelectedTicket(ticket);
                             setQuoteModalOpen(true);
                           }}
-                          className="bg-purple-600 hover:bg-purple-700 text-white"
+                          className="bg-orange-600 hover:bg-orange-700 text-white"
                         >
                           Submit Quote
                         </Button>
@@ -1118,13 +1124,26 @@ const AgentDashboardContent = () => {
                     <SelectItem value="all">All Statuses</SelectItem>
                     <SelectItem value="open">Open</SelectItem>
                     <SelectItem value="claimed">Claimed</SelectItem>
-                    <SelectItem value="quote_submitted">Quote Submitted</SelectItem>
+                    <SelectItem value="quote_submitted">Quote Pending</SelectItem>
                     <SelectItem value="pending_approval">Pending Approval</SelectItem>
                     <SelectItem value="in_process">In Process</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm">Location</span>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Filter by location..."
+                    value={locationFilter}
+                    onChange={(e) => setLocationFilter(e.target.value)}
+                    className="pl-9 w-60"
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1302,7 +1321,7 @@ const AgentDashboardContent = () => {
             <Button
               type="submit"
               onClick={handleSubmitQuote}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               Submit for Approval
             </Button>

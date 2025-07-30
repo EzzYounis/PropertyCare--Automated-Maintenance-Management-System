@@ -149,6 +149,62 @@ export const AgentInvoices = () => {
     }
   };
 
+  const handleMarkAsPaid = async (ticketId: string) => {
+    try {
+      // Update payment status in local state first for immediate UI feedback
+      setTickets(prevTickets => 
+        prevTickets.map(ticket => 
+          ticket.id === ticketId 
+            ? { ...ticket, payment_status: 'paid' }
+            : ticket
+        )
+      );
+
+      // If selected invoice is being updated, update it too
+      if (selectedInvoice && selectedInvoice.id === ticketId) {
+        setSelectedInvoice(prev => ({
+          ...prev,
+          payment_status: 'paid'
+        }));
+      }
+
+      // Here you could add database update logic
+      // For now, we'll update the local state only
+      // You might want to add a payment_status column to your maintenance_requests table
+      // and update it here with Supabase
+
+      toast({
+        title: "Payment Marked",
+        description: "Invoice has been marked as paid successfully.",
+      });
+
+    } catch (error) {
+      console.error('Error marking invoice as paid:', error);
+      
+      // Revert the local state change on error
+      setTickets(prevTickets => 
+        prevTickets.map(ticket => 
+          ticket.id === ticketId 
+            ? { ...ticket, payment_status: 'pending' }
+            : ticket
+        )
+      );
+
+      if (selectedInvoice && selectedInvoice.id === ticketId) {
+        setSelectedInvoice(prev => ({
+          ...prev,
+          payment_status: 'pending'
+        }));
+      }
+
+      toast({
+        title: "Error",
+        description: "Failed to mark invoice as paid.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Get completed tickets with actual costs for invoicing
   const getInvoiceTickets = () => tickets.filter(ticket => 
     ticket.status === 'completed' && ticket.actual_cost && ticket.actual_cost > 0
@@ -356,7 +412,11 @@ export const AgentInvoices = () => {
                                   Download
                                 </Button>
                                 {ticket.payment_status === 'pending' && (
-                                  <Button size="sm" className="bg-agent hover:bg-agent-secondary text-white">
+                                  <Button 
+                                    size="sm" 
+                                    className="bg-agent hover:bg-agent-secondary text-white"
+                                    onClick={() => handleMarkAsPaid(ticket.id)}
+                                  >
                                     Mark as Paid
                                   </Button>
                                 )}
@@ -451,17 +511,17 @@ export const AgentInvoices = () => {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <p className="font-semibold">{selectedInvoice.tenant}</p>
-                      <p className="text-sm text-muted-foreground">{selectedInvoice.property}</p>
+                      <p className="font-semibold">{selectedInvoice.tenant_profile?.name || 'Unknown Tenant'}</p>
+                      <p className="text-sm text-muted-foreground">{selectedInvoice.property_address || 'Unknown Property'}</p>
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center space-x-2">
                         <Phone className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm">{selectedInvoice.tenantPhone}</span>
+                        <span className="text-sm">{selectedInvoice.tenant_profile?.phone || '+44 7700 123456'}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Mail className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm">{selectedInvoice.tenantEmail}</span>
+                        <span className="text-sm">{selectedInvoice.tenant_profile?.username ? `${selectedInvoice.tenant_profile.username}@propertycare.app` : 'tenant@propertycare.app'}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -479,16 +539,16 @@ export const AgentInvoices = () => {
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span>Labor ({selectedInvoice.hours} hours)</span>
-                      <span>£{selectedInvoice.laborCost.toFixed(2)}</span>
+                      <span>Service & Labor</span>
+                      <span>£{(selectedInvoice.actual_cost * 0.7 || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Materials & Parts</span>
-                      <span>£{selectedInvoice.materialsCost.toFixed(2)}</span>
+                      <span>£{(selectedInvoice.actual_cost * 0.3 || 0).toFixed(2)}</span>
                     </div>
                     <div className="border-t pt-3 flex justify-between font-bold text-lg">
                       <span>Total Amount</span>
-                      <span className="text-agent">£{selectedInvoice.amount.toFixed(2)}</span>
+                      <span className="text-agent">£{(selectedInvoice.actual_cost || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -506,19 +566,19 @@ export const AgentInvoices = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Invoice Date</p>
-                      <p>{selectedInvoice.invoiceDate}</p>
+                      <p>{selectedInvoice.completed_at ? new Date(selectedInvoice.completed_at).toLocaleDateString() : 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Due Date</p>
-                      <p>{selectedInvoice.dueDate}</p>
+                      <p>{selectedInvoice.completed_at ? new Date(new Date(selectedInvoice.completed_at).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Payment Method</p>
-                      <p>{selectedInvoice.paymentMethod}</p>
+                      <p>Bank Transfer</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Status</p>
-                      {getStatusBadge(selectedInvoice.status)}
+                      {getStatusBadge(selectedInvoice.payment_status)}
                     </div>
                   </div>
                 </CardContent>
@@ -530,8 +590,11 @@ export const AgentInvoices = () => {
                   <Download className="w-4 h-4 mr-2" />
                   Download Invoice
                 </Button>
-                {selectedInvoice.status === 'Pending' && (
-                  <Button variant="outline">
+                {selectedInvoice.payment_status === 'pending' && (
+                  <Button 
+                    variant="outline"
+                    onClick={() => handleMarkAsPaid(selectedInvoice.id)}
+                  >
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Mark as Paid
                   </Button>

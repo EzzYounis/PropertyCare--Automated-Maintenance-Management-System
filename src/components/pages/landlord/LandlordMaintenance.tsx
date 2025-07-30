@@ -378,7 +378,7 @@ export const LandlordMaintenance = () => {
                     {ticket.status === 'in_process' ? 'In Process' : 
                      ticket.status === 'submitted' ? 'Open' : 
                      ticket.status === 'pending_approval' ? 'Pending Approval' :
-                     ticket.status === 'quote_submitted' ? 'Quote Submitted' :
+                     ticket.status === 'quote_submitted' ? 'Quote Pending' :
                      ticket.status === 'rejected' ? 'Rejected' :
                      ticket.status}
                   </span>
@@ -592,7 +592,7 @@ export const LandlordMaintenance = () => {
                     <SelectItem value="all">All Statuses</SelectItem>
                     <SelectItem value="open">Open</SelectItem>
                     <SelectItem value="claimed">Claimed</SelectItem>
-                    <SelectItem value="quote_submitted">Quote Submitted</SelectItem>
+                    <SelectItem value="quote_submitted">Quote Pending</SelectItem>
                     <SelectItem value="pending_approval">Pending Approval</SelectItem>
                     <SelectItem value="in_process">In Process</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
