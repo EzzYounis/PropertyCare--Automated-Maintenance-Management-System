@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { 
   Building2, 
   MapPin, 
@@ -54,6 +55,16 @@ export const AgentProperties = () => {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<PropertyWithLandlord | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    address: '',
+    type: '',
+    units: '',
+    rent_per_unit: '',
+    status: 'available'
+  });
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -64,16 +75,30 @@ export const AgentProperties = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [propertiesData, landlordsData] = await Promise.all([
+      const [propertiesData, landlordsData, tenantsData] = await Promise.all([
         tenantService.getProperties(),
-        tenantService.getLandlords()
+        tenantService.getLandlords(),
+        tenantService.getTenants()
       ]);
 
-      // Enhance properties with landlord information
+      // Enhance properties with landlord and occupancy information
       const enhancedProperties: PropertyWithLandlord[] = propertiesData.map(property => {
         const landlord = landlordsData.find(l => l.id === property.landlord_id);
+        const tenant = tenantsData.find(t => t.property_id === property.id);
+        
+        // Determine real status based on tenant assignment
+        let realStatus = property.status;
+        if (tenant && tenant.tenant_status === 'active') {
+          realStatus = 'occupied';
+        } else if (!tenant || tenant.tenant_status === 'inactive') {
+          realStatus = 'available';
+        } else if (property.status === 'maintenance') {
+          realStatus = 'maintenance';
+        }
+
         return {
           ...property,
+          status: realStatus, // Use real status based on data
           landlord_name: landlord?.name || 'No Landlord',
           landlord_email: landlord?.email,
           landlord_phone: landlord?.phone,
@@ -109,7 +134,19 @@ export const AgentProperties = () => {
         (property.landlord_name && property.landlord_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (property.short_id && property.short_id.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchesStatus = statusFilter === 'all' || property.status === statusFilter;
+      // Handle status filtering with mapping between display and database statuses
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
+        const propertyStatus = property.status.toLowerCase();
+        if (statusFilter === 'occupied') {
+          matchesStatus = propertyStatus === 'occupied' || propertyStatus === 'active';
+        } else if (statusFilter === 'available') {
+          matchesStatus = propertyStatus === 'available' || propertyStatus === 'inactive';
+        } else {
+          matchesStatus = propertyStatus === statusFilter;
+        }
+      }
+      
       const matchesType = typeFilter === 'all' || property.type === typeFilter;
 
       return matchesSearch && matchesStatus && matchesType;
@@ -166,13 +203,11 @@ export const AgentProperties = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
+      case 'occupied':
       case 'active':
         return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">Occupied</Badge>;
-      case 'occupied':
-        return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">Occupied</Badge>;
-      case 'inactive':
-        return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Available</Badge>;
       case 'available':
+      case 'inactive':
         return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Available</Badge>;
       case 'maintenance':
         return <Badge variant="destructive" className="bg-yellow-100 text-yellow-800 border-yellow-200">Maintenance</Badge>;
@@ -208,6 +243,72 @@ export const AgentProperties = () => {
     navigate(`/property/${propertyId}`);
   };
 
+  const openEditModal = (property: PropertyWithLandlord) => {
+    setSelectedProperty(property);
+    setEditFormData({
+      name: property.name,
+      address: property.address,
+      type: property.type,
+      units: property.units?.toString() || '',
+      rent_per_unit: property.rent_per_unit?.toString() || '',
+      status: property.status || 'available'
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const resetEditForm = () => {
+    setEditFormData({
+      name: '',
+      address: '',
+      type: '',
+      units: '',
+      rent_per_unit: '',
+      status: 'available'
+    });
+    setSelectedProperty(null);
+  };
+
+  const handleEditProperty = async () => {
+    if (!selectedProperty) return;
+
+    try {
+      // Map display status back to database status
+      let dbStatus = editFormData.status;
+      if (editFormData.status === 'occupied') {
+        dbStatus = 'active';
+      } else if (editFormData.status === 'available') {
+        dbStatus = 'inactive';
+      }
+
+      const updateData = {
+        name: editFormData.name,
+        address: editFormData.address,
+        type: editFormData.type,
+        units: editFormData.units ? parseInt(editFormData.units) : undefined,
+        rent_per_unit: editFormData.rent_per_unit ? parseFloat(editFormData.rent_per_unit) : undefined,
+        status: dbStatus,
+      };
+
+      await tenantService.updateProperty(selectedProperty.id, updateData);
+      await loadData();
+      setIsEditModalOpen(false);
+      resetEditForm();
+      
+      toast({
+        title: 'Success',
+        description: `Property "${editFormData.name}" has been updated successfully.`,
+      });
+    } catch (error) {
+      console.error('Error updating property:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update property. Please try again.';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -239,7 +340,7 @@ export const AgentProperties = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -258,7 +359,20 @@ export const AgentProperties = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Occupied</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {properties.filter(p => p.status === 'active').length}
+                  {properties.filter(p => p.status === 'occupied' || p.status === 'active').length}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Home className="w-8 h-8 text-blue-600" />
+              <div>
+                <p className="text-sm text-muted-foreground">Available</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {properties.filter(p => p.status === 'available' || p.status === 'inactive').length}
                 </p>
               </div>
             </div>
@@ -326,8 +440,8 @@ export const AgentProperties = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="occupied">Occupied</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
                   <SelectItem value="maintenance">Maintenance</SelectItem>
                 </SelectContent>
               </Select>
@@ -475,7 +589,7 @@ export const AgentProperties = () => {
                             <Eye className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditModal(property)}>
                             <Edit2 className="w-4 h-4 mr-2" />
                             Edit Property
                           </DropdownMenuItem>
@@ -512,6 +626,103 @@ export const AgentProperties = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit Property Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Property</DialogTitle>
+            <DialogDescription>
+              Update property information. All required fields are marked with *.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_property_name">Property Name *</Label>
+                <Input
+                  id="edit_property_name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                  placeholder="Enter property name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_property_type">Property Type *</Label>
+                <Select value={editFormData.type} onValueChange={(value) => setEditFormData({...editFormData, type: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select property type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="apartment">Apartment</SelectItem>
+                    <SelectItem value="house">House</SelectItem>
+                    <SelectItem value="condo">Condo</SelectItem>
+                    <SelectItem value="townhouse">Townhouse</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_property_address">Address *</Label>
+              <Input
+                id="edit_property_address"
+                value={editFormData.address}
+                onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
+                placeholder="Enter property address"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_property_units">Units</Label>
+                <Input
+                  id="edit_property_units"
+                  type="number"
+                  min="1"
+                  value={editFormData.units}
+                  onChange={(e) => setEditFormData({...editFormData, units: e.target.value})}
+                  placeholder="Number of units"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_property_rent">Monthly Rent ($)</Label>
+                <Input
+                  id="edit_property_rent"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editFormData.rent_per_unit}
+                  onChange={(e) => setEditFormData({...editFormData, rent_per_unit: e.target.value})}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_property_status">Status</Label>
+                <Select value={editFormData.status} onValueChange={(value) => setEditFormData({...editFormData, status: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="available">Available</SelectItem>
+                    <SelectItem value="occupied">Occupied</SelectItem>
+                    <SelectItem value="maintenance">Under Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleEditProperty} 
+              disabled={!editFormData.name || !editFormData.address || !editFormData.type}
+            >
+              Update Property
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

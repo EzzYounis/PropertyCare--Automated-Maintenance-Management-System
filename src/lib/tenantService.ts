@@ -425,6 +425,9 @@ const tenantServiceObject = {
         if (newPropertyId) {
           await this.updatePropertyStatus(newPropertyId);
         }
+      } else if (newPropertyId && updateData.monthly_rent !== undefined) {
+        // If staying on the same property but rent changed, update property rent
+        await this.updatePropertyStatus(newPropertyId);
       }
     } catch (error) {
       console.error('Error updating tenant:', error);
@@ -687,9 +690,10 @@ const tenantServiceObject = {
       // Check if property has a tenant assigned
       const { data: tenants, error: tenantsError } = await supabase
         .from('profiles' as any)
-        .select('id')
+        .select('id, monthly_rent')
         .eq('property_id', propertyId)
-        .eq('role', 'tenant');
+        .eq('role', 'tenant')
+        .eq('tenant_status', 'active');
 
       if (tenantsError) {
         console.error('Error checking property tenants:', tenantsError);
@@ -703,7 +707,16 @@ const tenantServiceObject = {
       // We'll use 'active' for occupied and 'inactive' for available
       const status = tenants && tenants.length > 0 ? 'active' : 'inactive';
       
-      await this.updateProperty(propertyId, { status });
+      // If property is occupied, also update the rent based on tenant's monthly rent
+      const updateData: any = { status };
+      if (tenants && tenants.length > 0) {
+        const tenant = tenants[0] as any;
+        if (tenant.monthly_rent) {
+          updateData.rent_per_unit = tenant.monthly_rent;
+        }
+      }
+      
+      await this.updateProperty(propertyId, updateData);
     } catch (error) {
       console.error('Error updating property status:', error);
     }
@@ -716,6 +729,7 @@ const tenantServiceObject = {
         .from('profiles' as any)
         .select('monthly_rent')
         .eq('role', 'tenant')
+        .eq('tenant_status', 'active') // Only count active tenants
         .not('monthly_rent', 'is', null);
 
       // If landlordId is provided, filter by landlord
@@ -1006,15 +1020,20 @@ const tenantServiceObject = {
       const properties = landlordId ? allProperties.filter(p => p.landlord_id === landlordId) : allProperties;
       const tenants = landlordId ? allTenants.filter(t => t.landlord_id === landlordId) : allTenants;
 
-      const occupiedProperties = properties.filter(p => p.status === 'active').length; // 'active' means occupied
-      const availableProperties = properties.filter(p => p.status === 'inactive').length; // 'inactive' means available
+      // Calculate real occupancy based on active tenant assignments
+      const occupiedProperties = properties.filter(property => {
+        const tenant = tenants.find(t => t.property_id === property.id && t.tenant_status === 'active');
+        return tenant !== undefined;
+      }).length;
+      
+      const availableProperties = properties.length - occupiedProperties;
       const occupancyRate = properties.length > 0 ? (occupiedProperties / properties.length) * 100 : 0;
 
       return {
         totalProperties: properties.length,
         occupiedProperties,
         availableProperties,
-        totalTenants: tenants.length,
+        totalTenants: tenants.filter(t => t.tenant_status === 'active').length,
         monthlyRevenue,
         maintenanceCosts,
         occupancyRate
@@ -1049,13 +1068,18 @@ const tenantServiceObject = {
         this.calculateMonthlyRevenue()
       ]);
 
-      const occupiedProperties = properties.filter(p => p.status === 'active').length; // 'active' means occupied in database
+      // Calculate real occupancy based on active tenant assignments
+      const occupiedProperties = properties.filter(property => {
+        const tenant = tenants.find(t => t.property_id === property.id && t.tenant_status === 'active');
+        return tenant !== undefined;
+      }).length;
+      
       const occupancyRate = properties.length > 0 ? (occupiedProperties / properties.length) * 100 : 0;
 
       return {
         totalProperties: properties.length,
         totalLandlords: landlords.length,
-        totalTenants: tenants.length,
+        totalTenants: tenants.filter(t => t.tenant_status === 'active').length,
         occupancyRate,
         totalRevenue
       };
