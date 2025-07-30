@@ -59,37 +59,11 @@ export const AgentTickets = () => {
 
   const fetchMaintenanceRequests = async () => {
     try {
-      const { data: requests, error: requestsError } = await supabase
-        .from('maintenance_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (requestsError) {
-        throw requestsError;
-      }
-
-      // Get tenant profiles to display tenant names
-      if (requests && requests.length > 0) {
-        const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('id', tenantIds);
-
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        }
-
-        // Combine the data
-        const requestsWithProfiles = requests.map(request => ({
-          ...request,
-          tenant_profile: profiles?.find(p => p.id === request.tenant_id) || null
-        }));
-
-        setTickets(requestsWithProfiles || []);
-      } else {
-        setTickets([]);
-      }
+      // Use the enhanced function that includes landlord information
+      const { tenantService } = await import('@/lib/tenantService');
+      const requestsWithDetails = await tenantService.getMaintenanceRequestsWithDetails();
+      
+      setTickets(requestsWithDetails || []);
     } catch (error) {
       console.error('Error fetching maintenance requests:', error);
       toast({

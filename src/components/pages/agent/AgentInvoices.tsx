@@ -43,6 +43,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getAllWorkers } from '@/data/workers';
+import { tenantService } from '@/lib/tenantService';
 
 // Issue categories mapping to match database
 const issueCategories = {
@@ -121,36 +122,19 @@ export const AgentInvoices = () => {
 
   const fetchMaintenanceRequests = async () => {
     try {
-      const { data: requests, error: requestsError } = await supabase
-        .from('maintenance_requests')
-        .select('*')
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false });
+      // Get all maintenance requests with enhanced details
+      const requests = await tenantService.getMaintenanceRequestsWithDetails();
+      
+      // Filter only completed requests for invoicing
+      const completedRequests = requests.filter(request => request.status === 'completed');
 
-      if (requestsError) throw requestsError;
+      const requestsWithPaymentStatus = completedRequests.map(request => ({
+        ...request,
+        // Add payment status (you might want to add this field to your database)
+        payment_status: request.actual_cost ? (Math.random() > 0.3 ? 'paid' : 'pending') : 'pending'
+      }));
 
-      if (requests && requests.length > 0) {
-        const tenantIds = [...new Set(requests.map(r => r.tenant_id))];
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, name, username')
-          .in('id', tenantIds);
-
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        }
-
-        const requestsWithProfiles = requests.map(request => ({
-          ...request,
-          tenant_profile: profiles?.find(p => p.id === request.tenant_id) || null,
-          // Add payment status (you might want to add this field to your database)
-          payment_status: request.actual_cost ? (Math.random() > 0.3 ? 'paid' : 'pending') : 'pending'
-        }));
-
-        setTickets(requestsWithProfiles);
-      } else {
-        setTickets([]);
-      }
+      setTickets(requestsWithPaymentStatus);
     } catch (error) {
       console.error('Error fetching maintenance requests:', error);
     }

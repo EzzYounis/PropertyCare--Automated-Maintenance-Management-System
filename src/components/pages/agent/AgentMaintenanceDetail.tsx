@@ -304,6 +304,7 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
 
       fetchWorkerDetails();
       fetchWorkerRatings();
+      fetchLandlordInfo(); // Add the missing landlord info fetch
     }
   }, [issue, user]);
 
@@ -334,26 +335,136 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
 
   // Fetch landlord information
   const fetchLandlordInfo = async () => {
-    if (issue.landlord_id) {
-      try {
+    try {
+      console.log('Fetching landlord info for issue:', issue.id);
+      
+      // First, try to get landlord_id directly from the issue
+      if (issue.landlord_id) {
+        console.log('Using direct landlord_id:', issue.landlord_id);
         const { data: landlord, error } = await supabase
           .from("profiles")
-          .select("id, name, username, phone")
+          .select("id, name, username, phone, email")
           .eq("id", issue.landlord_id)
+          .eq("role", "landlord")
           .single();
 
         if (!error && landlord) {
-          setLandlordInfo(landlord);
+          setLandlordInfo({
+            id: (landlord as any).id,
+            name: (landlord as any).name,
+            username: (landlord as any).username,
+            phone: (landlord as any).phone || "Not provided",
+            email: (landlord as any).email || `${(landlord as any).username}@propertycare.app`
+          });
+          return;
         }
-      } catch (error) {
-        console.error("Error fetching landlord details:", error);
       }
-    } else {
-      // If no landlord_id, create mock landlord data
+
+      // If no direct landlord_id, get it through the tenant's profile
+      if (issue.tenant_id) {
+        console.log('Getting landlord through tenant_id:', issue.tenant_id);
+        
+        // Get tenant's landlord_id from their profile
+        const { data: tenant, error: tenantError } = await supabase
+          .from("profiles")
+          .select("landlord_id, property_id")
+          .eq("id", issue.tenant_id)
+          .eq("role", "tenant")
+          .single();
+
+        if (tenantError) {
+          console.error('Error fetching tenant details:', tenantError);
+        }
+
+        if (tenant && (tenant as any).landlord_id) {
+          console.log('Found landlord_id from tenant:', (tenant as any).landlord_id);
+          
+          // Get landlord details
+          const { data: landlord, error: landlordError } = await supabase
+            .from("profiles")
+            .select("id, name, username, phone, email")
+            .eq("id", (tenant as any).landlord_id)
+            .eq("role", "landlord")
+            .single();
+
+          if (landlordError) {
+            console.error('Error fetching landlord details:', landlordError);
+          }
+
+          if (landlord) {
+            console.log('Found landlord:', landlord);
+            setLandlordInfo({
+              id: (landlord as any).id,
+              name: (landlord as any).name,
+              username: (landlord as any).username,
+              phone: (landlord as any).phone || "Not provided",
+              email: (landlord as any).email || `${(landlord as any).username}@propertycare.app`
+            });
+            return;
+          }
+        }
+
+        // If still no landlord, try to get it through property
+        if (tenant && (tenant as any).property_id) {
+          console.log('Getting landlord through property_id:', (tenant as any).property_id);
+          
+          const { data: property, error: propertyError } = await supabase
+            .from("properties")
+            .select("landlord_id")
+            .eq("id", (tenant as any).property_id)
+            .single();
+
+          if (propertyError) {
+            console.error('Error fetching property details:', propertyError);
+          }
+
+          if (property && (property as any).landlord_id) {
+            console.log('Found landlord_id from property:', (property as any).landlord_id);
+            
+            const { data: landlord, error: landlordError } = await supabase
+              .from("profiles")
+              .select("id, name, username, phone, email")
+              .eq("id", (property as any).landlord_id)
+              .eq("role", "landlord")
+              .single();
+
+            if (landlordError) {
+              console.error('Error fetching landlord from property:', landlordError);
+            }
+
+            if (landlord) {
+              console.log('Found landlord through property:', landlord);
+              setLandlordInfo({
+                id: (landlord as any).id,
+                name: (landlord as any).name,
+                username: (landlord as any).username,
+                phone: (landlord as any).phone || "Not provided",
+                email: (landlord as any).email || `${(landlord as any).username}@propertycare.app`
+              });
+              return;
+            }
+          }
+        }
+      }
+
+      // If we still can't find the landlord, show a default message
+      console.log('No landlord found, setting default message');
       setLandlordInfo({
-        name: "John Smith",
-        username: "johnsmith",
-        phone: "+44 7800 654321",
+        id: "",
+        name: "Contact information not available",
+        username: "",
+        phone: "Not available",
+        email: "Not available"
+      });
+      
+    } catch (error) {
+      console.error("Error fetching landlord details:", error);
+      setLandlordInfo({
+        id: "",
+        name: "Error loading contact information",
+        username: "",
+        phone: "Error",
+        email: "Error"
       });
     }
   };
@@ -894,22 +1005,36 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                   </div>
 
                   {/* Landlord Information */}
-                  {landlordInfo && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Landlord:
-                      </label>
-                      <p className="font-medium">{landlordInfo.name}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                        <Phone className="w-4 h-4" />
-                        <span>{landlordInfo.phone}</span>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Property Landlord:
+                    </label>
+                    {landlordInfo ? (
+                      <div>
+                        <p className="font-medium">{landlordInfo.name}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                          <Phone className="w-4 h-4" />
+                          <span>{landlordInfo.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="w-4 h-4" />
+                          <span>{landlordInfo.email}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Mail className="w-4 h-4" />
-                        <span>{landlordInfo.username}@propertycare.app</span>
+                    ) : (
+                      <div>
+                        <p className="font-medium text-muted-foreground">Loading landlord information...</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                          <Phone className="w-4 h-4" />
+                          <span>Loading...</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="w-4 h-4" />
+                          <span>Loading...</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">
