@@ -24,10 +24,15 @@ import {
   Home,
   UserCheck,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Star,
+  Award
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { LandlordWorkerRatingDialog } from '@/components/landlord/LandlordWorkerRatingDialog';
+import { StarRating } from '@/components/ui/star-rating';
 
 interface LandlordMaintenanceDetailProps {
   issue: any;
@@ -46,7 +51,11 @@ export const LandlordMaintenanceDetail: React.FC<LandlordMaintenanceDetailProps>
   const [tenantInfo, setTenantInfo] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
+  const [assignedWorker, setAssignedWorker] = useState(null);
+  const [landlordRating, setLandlordRating] = useState<any>(null);
+  const [isLandlordRatingDialogOpen, setIsLandlordRatingDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Helper functions for badge styling
   const getPriorityBadgeConfig = (priority: string) => {
@@ -146,9 +155,53 @@ export const LandlordMaintenanceDetail: React.FC<LandlordMaintenanceDetailProps>
         }
       };
 
+      // Fetch worker information if assigned
+      const fetchWorkerInfo = async () => {
+        if (issue.assigned_worker_id) {
+          try {
+            const { data: worker, error } = await supabase
+              .from('workers')
+              .select('*')
+              .eq('id', issue.assigned_worker_id)
+              .single();
+            
+            if (!error && worker) {
+              setAssignedWorker(worker);
+            }
+          } catch (error) {
+            console.error('Error fetching worker details:', error);
+          }
+        }
+      };
+
+      // Fetch landlord's existing rating if issue is completed
+      const fetchLandlordRating = async () => {
+        if (user && issue.status === 'completed' && issue.assigned_worker_id) {
+          try {
+            const { data, error } = await supabase
+              .from('worker_ratings')
+              .select('*')
+              .eq('maintenance_request_id', issue.id)
+              .eq('rater_id', user.id)
+              .eq('rater_type', 'agent') // Use 'agent' temporarily until 'landlord' constraint is added
+              .single();
+
+            if (error && error.code !== 'PGRST116') {
+              throw error;
+            }
+
+            setLandlordRating(data);
+          } catch (error) {
+            console.error('Error fetching landlord rating:', error);
+          }
+        }
+      };
+
       fetchTenantInfo();
+      fetchWorkerInfo();
+      fetchLandlordRating();
     }
-  }, [issue]);
+  }, [issue, user]);
 
   const handleApproveQuote = async () => {
     try {
@@ -214,6 +267,52 @@ export const LandlordMaintenanceDetail: React.FC<LandlordMaintenanceDetailProps>
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleLandlordRatingSubmitted = () => {
+    // Refresh the landlord rating and worker details
+    if (user && issue.status === 'completed' && issue.assigned_worker_id) {
+      const fetchLandlordRating = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('worker_ratings')
+            .select('*')
+            .eq('maintenance_request_id', issue.id)
+            .eq('rater_id', user.id)
+            .eq('rater_type', 'agent') // Use 'agent' temporarily until 'landlord' constraint is added
+            .single();
+
+          if (error && error.code !== 'PGRST116') {
+            throw error;
+          }
+
+          setLandlordRating(data);
+        } catch (error) {
+          console.error('Error fetching updated landlord rating:', error);
+        }
+      };
+
+      const fetchWorkerInfo = async () => {
+        if (issue.assigned_worker_id) {
+          try {
+            const { data: worker, error } = await supabase
+              .from('workers')
+              .select('*')
+              .eq('id', issue.assigned_worker_id)
+              .single();
+            
+            if (!error && worker) {
+              setAssignedWorker(worker);
+            }
+          } catch (error) {
+            console.error('Error fetching updated worker details:', error);
+          }
+        }
+      };
+
+      fetchLandlordRating();
+      fetchWorkerInfo();
     }
   };
 
@@ -514,6 +613,112 @@ export const LandlordMaintenanceDetail: React.FC<LandlordMaintenanceDetailProps>
                 </div>
               )}
 
+              {/* Landlord Rating Section for Completed Work */}
+              {issue.status === 'completed' && assignedWorker && user && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Assigned Worker</h3>
+
+                  <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 mb-4">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                          {assignedWorker.name?.split(' ').map(n => n[0]).join('') || 'W'}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-green-900">
+                              {assignedWorker.name}
+                            </h4>
+                            {assignedWorker.rating && (
+                              <div className="flex items-center gap-1">
+                                <StarRating
+                                  value={assignedWorker.rating}
+                                  readonly
+                                  size="sm"
+                                />
+                                <span className="text-sm text-green-700">
+                                  ({assignedWorker.rating.toFixed(1)})
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {assignedWorker.specialty && (
+                            <p className="text-sm text-green-700 mb-2">
+                              {assignedWorker.specialty}
+                            </p>
+                          )}
+                          {assignedWorker.description && (
+                            <p className="text-sm text-green-700 mb-2">
+                              {assignedWorker.description}
+                            </p>
+                          )}
+                          {assignedWorker.phone && (
+                            <div className="flex items-center gap-2 text-sm text-green-700">
+                              <Phone className="w-4 h-4" />
+                              <span>{assignedWorker.phone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Rating Section */}
+                  <Card className="bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Award className="w-5 h-5 text-yellow-600" />
+                        <span className="font-medium text-yellow-900">
+                          Worker Rating
+                        </span>
+                      </div>
+
+                      {landlordRating ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <StarRating
+                              value={landlordRating.rating}
+                              readonly
+                            />
+                            <span className="text-sm text-yellow-700">
+                              Your rating: {landlordRating.rating}/5
+                            </span>
+                          </div>
+                          {landlordRating.comment && (
+                            <p className="text-sm text-yellow-700 italic">
+                              "{landlordRating.comment}"
+                            </p>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsLandlordRatingDialogOpen(true)}
+                            className="mt-2"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Update Rating
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-sm text-yellow-700">
+                            How was your experience with this worker?
+                          </p>
+                          <Button
+                            onClick={() => setIsLandlordRatingDialogOpen(true)}
+                            size="sm"
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                          >
+                            <Star className="w-4 h-4 mr-2" />
+                            Rate Worker
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               {/* Photos & Videos */}
               {((issue.photos && issue.photos.length > 0) || (issue.videos && issue.videos.length > 0)) && (
                 <div>
@@ -610,6 +815,22 @@ export const LandlordMaintenanceDetail: React.FC<LandlordMaintenanceDetailProps>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Landlord Worker Rating Dialog */}
+      {issue.assigned_worker_id &&
+        assignedWorker &&
+        issue.status === 'completed' &&
+        user && (
+          <LandlordWorkerRatingDialog
+            open={isLandlordRatingDialogOpen}
+            onOpenChange={setIsLandlordRatingDialogOpen}
+            workerId={issue.assigned_worker_id}
+            workerName={assignedWorker.name}
+            maintenanceRequestId={issue.id}
+            onRatingSubmitted={handleLandlordRatingSubmitted}
+            existingRating={landlordRating}
+          />
+        )}
     </>
   );
 };
