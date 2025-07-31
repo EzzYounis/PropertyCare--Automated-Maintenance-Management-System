@@ -419,25 +419,39 @@ export const LandlordDashboard = () => {
                 <CardDescription>Overview of maintenance costs over time</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-80 flex items-end justify-between gap-2 px-4">
-                  {enhancedStats.monthlyExpenses.map((expense, index) => {
-                    const maxExpense = Math.max(...enhancedStats.monthlyExpenses.map(e => e.amount));
-                    const height = maxExpense > 0 ? (expense.amount / maxExpense) * 100 : 0;
-                    return (
-                      <div key={index} className="flex flex-col items-center flex-1">
-                        <div className="text-xs text-muted-foreground mb-2">
-                          ${expense.amount.toFixed(0)}
-                        </div>
-                        <div 
-                          className="w-full bg-blue-500 rounded-t-sm min-h-[4px]"
-                          style={{ height: `${Math.max(height, 5)}%` }}
-                        />
-                        <div className="text-xs text-muted-foreground mt-2">
-                          {expense.month}
-                        </div>
+                <div className="h-80 relative">
+                  {enhancedStats.monthlyExpenses.length > 0 ? (
+                    <div className="h-full flex items-end justify-between gap-2 px-4 pb-8">
+                      {enhancedStats.monthlyExpenses.map((expense, index) => {
+                        const maxExpense = Math.max(...enhancedStats.monthlyExpenses.map(e => e.amount));
+                        const heightPixels = maxExpense > 0 ? (expense.amount / maxExpense) * 240 : 4;
+                        return (
+                          <div key={index} className="flex flex-col items-center flex-1 h-full justify-end">
+                            <div className="text-xs text-muted-foreground mb-2 h-6 flex items-center">
+                              ${expense.amount.toFixed(0)}
+                            </div>
+                            <div 
+                              className="w-full bg-blue-500 rounded-t-sm transition-all duration-300 hover:bg-blue-600"
+                              style={{ 
+                                height: `${Math.max(heightPixels, 4)}px`,
+                                maxWidth: '60px'
+                              }}
+                            />
+                            <div className="text-xs text-muted-foreground mt-2 h-6 flex items-center">
+                              {expense.month}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>No expense data available</p>
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -449,64 +463,129 @@ export const LandlordDashboard = () => {
                 <CardDescription>Number of repairs completed each month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-80 flex items-end justify-center relative">
-                  <svg width="100%" height="100%" viewBox="0 0 300 200" className="overflow-visible">
-                    <defs>
-                      <linearGradient id="repairGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3"/>
-                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0"/>
-                      </linearGradient>
-                    </defs>
-                    {enhancedStats.monthlyRepairsTrend.length > 1 && (
-                      <>
-                        {/* Area fill */}
-                        <path
-                          d={`M 0 200 ${enhancedStats.monthlyRepairsTrend.map((repair, index) => {
-                            const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
-                            const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
-                            const y = 200 - (repair.count / maxCount) * 150;
-                            return `L ${x} ${y}`;
-                          }).join(' ')} L 300 200 Z`}
-                          fill="url(#repairGradient)"
-                        />
-                        {/* Line */}
-                        <path
-                          d={`M ${enhancedStats.monthlyRepairsTrend.map((repair, index) => {
-                            const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
-                            const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
-                            const y = 200 - (repair.count / maxCount) * 150;
-                            return `${index === 0 ? '' : 'L '}${x} ${y}`;
-                          }).join(' ')}`}
-                          fill="none"
-                          stroke="#8b5cf6"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                        />
-                        {/* Points */}
-                        {enhancedStats.monthlyRepairsTrend.map((repair, index) => {
-                          const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
+                <div className="h-80 relative">
+                  {enhancedStats.monthlyRepairsTrend.length > 0 ? (
+                    <div className="h-full flex">
+                      {/* Y-axis labels */}
+                      <div className="w-12 h-full flex flex-col justify-between py-4 pr-2">
+                        {(() => {
                           const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
-                          const y = 200 - (repair.count / maxCount) * 150;
-                          return (
-                            <circle
-                              key={index}
-                              cx={x}
-                              cy={y}
-                              r="4"
-                              fill="#8b5cf6"
-                              stroke="white"
-                              strokeWidth="2"
-                            />
-                          );
-                        })}
-                      </>
-                    )}
-                  </svg>
-                  <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-muted-foreground px-4">
-                    {enhancedStats.monthlyRepairsTrend.map((repair, index) => (
-                      <span key={index}>{repair.month}</span>
-                    ))}
-                  </div>
+                          const steps = 5;
+                          const stepSize = Math.ceil(maxCount / steps);
+                          return Array.from({ length: steps + 1 }, (_, i) => {
+                            const value = stepSize * (steps - i);
+                            return (
+                              <div key={i} className="text-xs text-muted-foreground text-right leading-none">
+                                {value}
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                      
+                      {/* Chart area */}
+                      <div className="flex-1 relative">
+                        <svg width="100%" height="100%" viewBox="0 0 300 200" className="overflow-visible">
+                          <defs>
+                            <linearGradient id="repairGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.3"/>
+                              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0"/>
+                            </linearGradient>
+                          </defs>
+                          
+                          {/* Grid lines */}
+                          {(() => {
+                            const steps = 5;
+                            return Array.from({ length: steps + 1 }, (_, i) => {
+                              const y = (i / steps) * 180 + 10;
+                              return (
+                                <line
+                                  key={i}
+                                  x1="0"
+                                  y1={y}
+                                  x2="300"
+                                  y2={y}
+                                  stroke="#e5e7eb"
+                                  strokeWidth="0.5"
+                                  opacity="0.5"
+                                />
+                              );
+                            });
+                          })()}
+                          
+                          {enhancedStats.monthlyRepairsTrend.length > 1 && (
+                            <>
+                              {/* Area fill */}
+                              <path
+                                d={`M 0 190 ${enhancedStats.monthlyRepairsTrend.map((repair, index) => {
+                                  const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
+                                  const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
+                                  const y = 190 - (repair.count / maxCount) * 180;
+                                  return `L ${x} ${y}`;
+                                }).join(' ')} L 300 190 Z`}
+                                fill="url(#repairGradient)"
+                              />
+                              {/* Line */}
+                              <path
+                                d={`M ${enhancedStats.monthlyRepairsTrend.map((repair, index) => {
+                                  const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
+                                  const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
+                                  const y = 190 - (repair.count / maxCount) * 180;
+                                  return `${index === 0 ? '' : 'L '}${x} ${y}`;
+                                }).join(' ')}`}
+                                fill="none"
+                                stroke="#8b5cf6"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                              />
+                              {/* Points */}
+                              {enhancedStats.monthlyRepairsTrend.map((repair, index) => {
+                                const x = (index / Math.max(enhancedStats.monthlyRepairsTrend.length - 1, 1)) * 300;
+                                const maxCount = Math.max(...enhancedStats.monthlyRepairsTrend.map(r => r.count), 1);
+                                const y = 190 - (repair.count / maxCount) * 180;
+                                return (
+                                  <g key={index}>
+                                    <circle
+                                      cx={x}
+                                      cy={y}
+                                      r="4"
+                                      fill="#8b5cf6"
+                                      stroke="white"
+                                      strokeWidth="2"
+                                    />
+                                    {/* Value labels on hover */}
+                                    <text
+                                      x={x}
+                                      y={y - 10}
+                                      textAnchor="middle"
+                                      className="text-xs fill-gray-600"
+                                      fontSize="10"
+                                    >
+                                      {repair.count}
+                                    </text>
+                                  </g>
+                                );
+                              })}
+                            </>
+                          )}
+                        </svg>
+                        
+                        {/* X-axis labels */}
+                        <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-muted-foreground px-2">
+                          {enhancedStats.monthlyRepairsTrend.map((repair, index) => (
+                            <span key={index} className="text-center">{repair.month}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <Wrench className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                        <p>No repair data available</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
