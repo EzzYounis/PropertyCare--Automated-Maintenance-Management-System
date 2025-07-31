@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { tenantService, Property, TenantProfile, LandlordProfile, MaintenanceRequest } from '@/lib/tenantService';
+import { LandlordMaintenanceDetail } from './LandlordMaintenanceDetail';
 
 interface PropertyWithDetails extends Property {
   landlord_name?: string;
@@ -43,6 +44,8 @@ export const PropertyDetail = () => {
   const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMaintenanceRequest, setSelectedMaintenanceRequest] = useState<MaintenanceRequest | null>(null);
+  const [isMaintenanceDetailOpen, setIsMaintenanceDetailOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -189,6 +192,18 @@ export const PropertyDetail = () => {
         return <Badge variant="outline" className="text-xs">Low</Badge>;
       default:
         return <Badge variant="outline" className="text-xs">{priority}</Badge>;
+    }
+  };
+
+  const handleMaintenanceRequestClick = (request: MaintenanceRequest) => {
+    setSelectedMaintenanceRequest(request);
+    setIsMaintenanceDetailOpen(true);
+  };
+
+  const handleMaintenanceUpdate = () => {
+    // Reload property data to get updated maintenance requests
+    if (id) {
+      loadPropertyData(id);
     }
   };
 
@@ -398,7 +413,11 @@ export const PropertyDetail = () => {
                     </h4>
                     <div className="space-y-3 max-h-64 overflow-y-auto">
                       {maintenanceRequests.slice(0, 5).map((request) => (
-                        <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                        <div 
+                          key={request.id} 
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 cursor-pointer transition-colors"
+                          onClick={() => handleMaintenanceRequestClick(request)}
+                        >
                           <div className="flex-1">
                             <p className="font-medium text-sm">{request.title}</p>
                             <p className="text-xs text-muted-foreground">{request.category}</p>
@@ -425,7 +444,11 @@ export const PropertyDetail = () => {
                     </div>
                     {maintenanceRequests.length > 5 && (
                       <div className="mt-3 text-center">
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate('/landlord/maintenance')}
+                        >
                           View All Requests ({maintenanceRequests.length})
                         </Button>
                       </div>
@@ -513,6 +536,16 @@ export const PropertyDetail = () => {
           </Card>
         </div>
       </div>
+
+      {/* Maintenance Detail Dialog */}
+      {selectedMaintenanceRequest && (
+        <LandlordMaintenanceDetail
+          issue={selectedMaintenanceRequest}
+          open={isMaintenanceDetailOpen}
+          onOpenChange={setIsMaintenanceDetailOpen}
+          onUpdate={handleMaintenanceUpdate}
+        />
+      )}
     </div>
   );
 };
