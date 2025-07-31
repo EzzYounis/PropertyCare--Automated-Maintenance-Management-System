@@ -22,6 +22,7 @@ import { AgentWorkers } from "@/components/pages/agent/AgentWorkers";
 import { AgentTenants } from "@/components/pages/agent/AgentTenants";
 import { AgentLandlords } from "@/components/pages/agent/AgentLandlords";
 import { AgentProperties } from "@/components/pages/agent/AgentProperties";
+import { AgentPropertyDetail } from "@/components/pages/agent/AgentPropertyDetail";
 import { AgentMessages } from "@/components/pages/agent/AgentMessages";
 import { AgentInvoices } from "@/components/pages/agent/AgentInvoices";
 import { LandlordMaintenance } from "@/components/pages/landlord/LandlordMaintenance";
@@ -166,6 +167,16 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <PropertyDetail />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/agent/property/:id"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AgentPropertyDetail />
             </Layout>
           </ProtectedRoute>
         }

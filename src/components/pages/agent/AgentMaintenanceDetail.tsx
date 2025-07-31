@@ -37,6 +37,9 @@ import {
   DollarSign,
   Clock,
   AlertTriangle,
+  Image,
+  Video,
+  Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,10 +144,36 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
           variant: "outline" as const,
           className: "bg-yellow-100 text-yellow-700 border-yellow-300",
         };
+      case "pending_approval":
+        return {
+          variant: "outline" as const,
+          className: "bg-orange-100 text-orange-700 border-orange-300",
+        };
+      case "quote_submitted":
+        return {
+          variant: "secondary" as const,
+          className: "bg-purple-500 text-white border-purple-500",
+        };
+      case "rejected":
+        return {
+          variant: "destructive" as const,
+          className: "bg-red-500 text-white border-red-500",
+        };
       case "cancelled":
         return {
           variant: "destructive" as const,
           className: "bg-red-500 text-white border-red-500",
+        };
+      case "open":
+      case "submitted":
+        return {
+          variant: "outline" as const,
+          className: "bg-blue-100 text-blue-700 border-blue-300",
+        };
+      case "claimed":
+        return {
+          variant: "secondary" as const,
+          className: "bg-indigo-500 text-white border-indigo-500",
         };
       default:
         return {
@@ -522,25 +551,30 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
   const handleSave = async () => {
     setIsLoading(true);
     try {
+      const updatedData = {
+        title: editData.title,
+        description: editData.description,
+        priority: editData.priority,
+        category: editData.category,
+        estimated_cost: editData.estimated_cost
+          ? parseFloat(editData.estimated_cost)
+          : null,
+        actual_cost: editData.actual_cost
+          ? parseFloat(editData.actual_cost)
+          : null,
+        agent_notes: editData.agent_notes,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from("maintenance_requests")
-        .update({
-          title: editData.title,
-          description: editData.description,
-          priority: editData.priority,
-          category: editData.category,
-          estimated_cost: editData.estimated_cost
-            ? parseFloat(editData.estimated_cost)
-            : null,
-          actual_cost: editData.actual_cost
-            ? parseFloat(editData.actual_cost)
-            : null,
-          agent_notes: editData.agent_notes,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatedData)
         .eq("id", issue.id);
 
       if (error) throw error;
+
+      // Update the local issue object with the new data
+      Object.assign(issue, updatedData);
 
       toast({
         title: "Success",
@@ -579,6 +613,12 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
         .eq("id", issue.id);
 
       if (error) throw error;
+
+      // Update the local issue object with the new data
+      Object.assign(issue, {
+        agent_notes: newNotes,
+        updated_at: new Date().toISOString(),
+      });
 
       setInternalNote("");
       toast({
@@ -678,6 +718,12 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
         .eq("id", issue.id);
 
       if (error) throw error;
+
+      // Update the local issue object with the new data
+      Object.assign(issue, {
+        assigned_worker_id: workerId,
+        status: "in_process",
+      });
 
       // Get the new worker details
       const newWorker = availableWorkers.find((w) => w.id === workerId);
@@ -781,17 +827,25 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
       }
 
       console.log("Quote submitted successfully to database");
+      console.log("Submitted quote data:", {
+        estimatedCost: estimatedCostNum,
+        estimatedTime: quoteData.estimatedTime,
+        description: quoteData.description
+      });
+
+      // Update the local issue object with the new data
+      Object.assign(issue, updateData);
 
       // Store the submitted quote details locally
       setSubmittedQuote({
         estimatedCost: estimatedCostNum,
-        estimatedTime: quoteData.estimatedTime,
+        estimatedTime: quoteData.estimatedTime || "Not specified",
         description: quoteData.description,
         submittedAt: new Date().toISOString(),
       });
 
       toast({
-        title: "Quote Submitted",
+        title: "Quote Pending",
         description: "Quote has been submitted for landlord approval.",
       });
 
@@ -952,15 +1006,13 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                         </label>
                         <div className="mt-1">
                           <Badge
-                            variant={
-                              issue.priority === "urgent"
-                                ? "destructive"
-                                : issue.priority === "high"
-                                ? "destructive"
-                                : issue.priority === "medium"
-                                ? "secondary"
-                                : "outline"
-                            }
+                            style={{
+                              backgroundColor: issue.priority === "urgent" ? "#ef4444" : 
+                                              issue.priority === "high" ? "#f97316" :
+                                              issue.priority === "medium" ? "#3b82f6" : "#10b981",
+                              color: "white",
+                              border: "none"
+                            }}
                           >
                             {issue.priority?.charAt(0).toUpperCase() +
                               issue.priority?.slice(1)}{" "}
@@ -974,18 +1026,109 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                         </label>
                         <div className="mt-1">
                           <Badge
-                            variant={
-                              issue.status === "completed"
-                                ? "default"
-                                : "secondary"
-                            }
+                            style={{
+                              backgroundColor: issue.status === "completed" ? "#10b981" :
+                                              issue.status === "in_process" ? "#3b82f6" :
+                                              issue.status === "pending_approval" ? "#f97316" :
+                                              issue.status === "quote_submitted" ? "#8b5cf6" :
+                                              issue.status === "rejected" ? "#ef4444" :
+                                              issue.status === "cancelled" ? "#ef4444" :
+                                              issue.status === "open" || issue.status === "submitted" ? "#3b82f6" :
+                                              issue.status === "claimed" ? "#6366f1" : "#6b7280",
+                              color: issue.status === "pending_approval" || issue.status === "open" || issue.status === "submitted" ? "#000" : "white",
+                              border: "none"
+                            }}
                           >
-                            {issue.status?.charAt(0).toUpperCase() +
-                              issue.status?.slice(1)}
+                            {issue.status === "quote_submitted" ? "Quote Pending" :
+                             issue.status === "pending_approval" ? "Pending Approval" :
+                             issue.status === "in_process" ? "In Process" :
+                             issue.status === "open" ? "Open" :
+                             issue.status === "submitted" ? "Open" :
+                             issue.status === "claimed" ? "Claimed" :
+                             issue.status === "rejected" ? "Rejected" :
+                             issue.status === "cancelled" ? "Cancelled" :
+                             issue.status === "completed" ? "Completed" :
+                             issue.status?.charAt(0).toUpperCase() + issue.status?.slice(1)}
                           </Badge>
                         </div>
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Photos & Videos */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Image className="w-5 h-5 text-blue-500" />
+                  Photos & Videos
+                </h3>
+                
+                {(issue.photos && issue.photos.length > 0) || (issue.videos && issue.videos.length > 0) ? (
+                  <div className="space-y-4">
+                    {issue.photos && issue.photos.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                          <Image className="w-4 h-4" />
+                          Photos ({issue.photos.length})
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {issue.photos.map((photo: string, index: number) => (
+                            <div
+                              key={index}
+                              className="group relative aspect-square bg-muted rounded-lg overflow-hidden border hover:border-blue-300 transition-colors cursor-pointer"
+                              onClick={() => window.open(photo, '_blank')}
+                            >
+                              <img
+                                src={photo}
+                                alt={`Issue photo ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                                <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {issue.videos && issue.videos.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                          <Video className="w-4 h-4" />
+                          Videos ({issue.videos.length})
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {issue.videos.map((video: string, index: number) => (
+                            <div
+                              key={index}
+                              className="group relative aspect-video bg-muted rounded-lg overflow-hidden border hover:border-blue-300 transition-colors"
+                            >
+                              <video
+                                src={video}
+                                className="w-full h-full object-cover"
+                                controls
+                                preload="metadata"
+                              >
+                                Your browser does not support the video tag.
+                              </video>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-muted/50 rounded-lg p-6 text-center">
+                    <div className="flex items-center justify-center mb-3">
+                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                        <Image className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      No photos or videos attached to this maintenance request
+                    </p>
                   </div>
                 )}
               </div>
@@ -1116,7 +1259,7 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                               </div>
                             </div>
                           </div>
-                          {issue.status !== "completed" && (
+                          {issue.status === "rejected" && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -1363,9 +1506,12 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                                 Estimated Time
                               </p>
                               <p className="text-xl font-bold text-green-900">
-                                {issue.estimated_time ||
-                                  submittedQuote?.estimatedTime ||
-                                  "Not specified"}
+                                {(submittedQuote?.estimatedTime && submittedQuote.estimatedTime.trim()) ||
+                                  issue.estimated_time ||
+                                  (() => {
+                                    const prediction = getAIPrediction(issue.category || "general", issue.priority || "medium");
+                                    return prediction.time;
+                                  })()}
                               </p>
                             </div>
                           </div>
@@ -1576,9 +1722,12 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                                 Estimated Time
                               </p>
                               <p className="text-xl font-bold text-orange-900">
-                                {issue.estimated_time ||
-                                  submittedQuote?.estimatedTime ||
-                                  "Not specified"}
+                                {(submittedQuote?.estimatedTime && submittedQuote.estimatedTime.trim()) ||
+                                  issue.estimated_time ||
+                                  (() => {
+                                    const prediction = getAIPrediction(issue.category || "general", issue.priority || "medium");
+                                    return prediction.time;
+                                  })()}
                               </p>
                             </div>
                           </div>
@@ -1633,33 +1782,44 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
 
                     <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
                       <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
+                        <div className="space-y-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                              <Clock className="w-5 h-5 text-amber-600" />
+                            <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                              <Clock className="w-6 h-6 text-amber-600" />
                             </div>
-                            <div>
-                              <h4 className="font-medium text-amber-900">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-amber-900 mb-1">
                                 Waiting for Worker Quote
                               </h4>
                               <p className="text-sm text-amber-700">
-                                Worker has been assigned and is preparing the
-                                quote
+                                Worker has been assigned and is preparing the quote
                               </p>
                             </div>
                           </div>
-                          {issue.status !== "completed" &&
-                            activeTab !== "all-agency" &&
-                            activeTab !== "unassigned" && (
-                              <Button
-                                variant="default"
-                                onClick={() => setShowQuoteDialog(true)}
-                                className="bg-purple-600 hover:bg-purple-700 text-white"
-                              >
-                                <DollarSign className="w-4 h-4 mr-2" />
-                                Submit Quote
-                              </Button>
-                            )}
+                          
+                          {issue.status !== "completed" && (
+                            <div className="bg-amber-100 border border-amber-300 rounded-lg p-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-amber-800 mb-1">
+                                    Ready to submit quote?
+                                  </p>
+                                  <p className="text-xs text-amber-600">
+                                    Click to provide cost estimate and timeline
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => setShowQuoteDialog(true)}
+                                  className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-sm"
+                                >
+                                  <DollarSign className="w-4 h-4 mr-2" />
+                                  Submit Quote
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1887,27 +2047,71 @@ export const AgentMaintenanceDetail: React.FC<AgentMaintenanceDetailProps> = ({
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-              {/* Photos */}
-              {issue.photos && issue.photos.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Photos</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {issue.photos.map((photo: string, index: number) => (
-                      <div
-                        key={index}
-                        className="aspect-square bg-muted rounded-lg overflow-hidden"
-                      >
-                        <img
-                          src={photo}
-                          alt={`Issue photo ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+      {/* Quote Submission Dialog */}
+      <Dialog open={showQuoteDialog} onOpenChange={setShowQuoteDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Submit Quote</DialogTitle>
+            <DialogDescription>
+              Provide an estimated cost and timeline for this maintenance request.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Estimated Cost (£)</label>
+              <Input
+                type="number"
+                placeholder="Enter estimated cost"
+                value={quoteData.estimatedCost}
+                onChange={(e) =>
+                  setQuoteData({ ...quoteData, estimatedCost: e.target.value })
+                }
+              />
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium">Estimated Time</label>
+              <Input
+                placeholder="e.g., 2-4 hours"
+                value={quoteData.estimatedTime}
+                onChange={(e) =>
+                  setQuoteData({ ...quoteData, estimatedTime: e.target.value })
+                }
+              />
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium">Work Description</label>
+              <Textarea
+                placeholder="Describe the work to be performed..."
+                value={quoteData.description}
+                onChange={(e) =>
+                  setQuoteData({ ...quoteData, description: e.target.value })
+                }
+                rows={3}
+              />
+            </div>
+            
+            <div className="flex gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowQuoteDialog(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitQuote}
+                className="flex-1 bg-purple-600 hover:bg-purple-700"
+              >
+                Submit Quote
+              </Button>
             </div>
           </div>
         </DialogContent>

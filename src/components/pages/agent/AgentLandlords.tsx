@@ -19,7 +19,17 @@ import {
   User,
   Building,
   Plus,
-  DollarSign
+  DollarSign,
+  Upload,
+  X,
+  Castle,
+  Warehouse,
+  Store,
+  Briefcase,
+  TreePine,
+  Zap,
+  Home,
+  Building2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { tenantService } from '@/lib/tenantService';
@@ -29,10 +39,10 @@ export const AgentLandlords = () => {
   const [landlords, setLandlords] = useState<LandlordProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedLandlord, setSelectedLandlord] = useState<LandlordProfile | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -40,21 +50,14 @@ export const AgentLandlords = () => {
     password: '',
     email: '',
     phone: '',
-    address: '',
-    company_name: '',
-    business_email: '',
-    business_phone: '',
-    business_address: '',
-    license_number: '',
-    preferred_payment_method: '',
-    status: 'active'
+    preferred_payment_method: ''
   });
   const [propertyData, setPropertyData] = useState({
     name: '',
     address: '',
     type: '',
-    rent_per_unit: '',
-    status: 'active'
+    landlord_id: '',
+    photos: []
   });
   const { toast } = useToast();
 
@@ -86,14 +89,7 @@ export const AgentLandlords = () => {
       password: '',
       email: '',
       phone: '',
-      address: '',
-      company_name: '',
-      business_email: '',
-      business_phone: '',
-      business_address: '',
-      license_number: '',
-      preferred_payment_method: '',
-      status: 'active'
+      preferred_payment_method: ''
     });
     setSelectedLandlord(null);
   };
@@ -106,12 +102,6 @@ export const AgentLandlords = () => {
         password: formData.password,
         email: formData.email,
         phone: formData.phone || undefined,
-        address: formData.address || undefined,
-        company_name: formData.company_name || undefined,
-        business_email: formData.business_email || undefined,
-        business_phone: formData.business_phone || undefined,
-        business_address: formData.business_address || undefined,
-        license_number: formData.license_number || undefined,
         preferred_payment_method: formData.preferred_payment_method || undefined,
       };
 
@@ -144,14 +134,7 @@ export const AgentLandlords = () => {
         username: formData.username,
         email: formData.email,
         phone: formData.phone || undefined,
-        address: formData.address || undefined,
-        company_name: formData.company_name || undefined,
-        business_email: formData.business_email || undefined,
-        business_phone: formData.business_phone || undefined,
-        business_address: formData.business_address || undefined,
-        license_number: formData.license_number || undefined,
         preferred_payment_method: formData.preferred_payment_method || undefined,
-        status: formData.status,
       });
 
       await loadData();
@@ -173,18 +156,23 @@ export const AgentLandlords = () => {
     }
   };
 
-  const handleDeleteLandlord = async (landlord: LandlordProfile) => {
-    if (!window.confirm(`Are you sure you want to delete ${landlord.name}? This action cannot be undone.`)) {
-      return;
-    }
+  const openDeleteModal = (landlord: LandlordProfile) => {
+    setSelectedLandlord(landlord);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteLandlord = async () => {
+    if (!selectedLandlord) return;
 
     try {
-      await tenantService.deleteLandlord(landlord.id);
+      await tenantService.deleteLandlord(selectedLandlord.id);
       await loadData();
+      setIsDeleteModalOpen(false);
+      setSelectedLandlord(null);
       
       toast({
         title: 'Success',
-        description: `${landlord.name} has been deleted successfully.`,
+        description: `${selectedLandlord.name} has been deleted successfully.`,
       });
     } catch (error) {
       console.error('Error deleting landlord:', error);
@@ -205,14 +193,7 @@ export const AgentLandlords = () => {
       password: '', // Don't show existing password
       email: landlord.email || '',
       phone: landlord.phone || '',
-      address: landlord.address || '',
-      company_name: landlord.company_name || '',
-      business_email: landlord.business_email || '',
-      business_phone: landlord.business_phone || '',
-      business_address: landlord.business_address || '',
-      license_number: landlord.license_number || '',
-      preferred_payment_method: landlord.preferred_payment_method || '',
-      status: landlord.status || 'active'
+      preferred_payment_method: landlord.preferred_payment_method || ''
     });
     setIsEditModalOpen(true);
   };
@@ -223,8 +204,8 @@ export const AgentLandlords = () => {
       name: '',
       address: '',
       type: '',
-      rent_per_unit: '',
-      status: 'active'
+      landlord_id: landlord.id,
+      photos: []
     });
     setIsAddPropertyModalOpen(true);
   };
@@ -234,8 +215,8 @@ export const AgentLandlords = () => {
       name: '',
       address: '',
       type: '',
-      rent_per_unit: '',
-      status: 'active'
+      landlord_id: '',
+      photos: []
     });
   };
 
@@ -243,13 +224,22 @@ export const AgentLandlords = () => {
     if (!selectedLandlord) return;
 
     try {
+      // Validate required fields
+      if (!propertyData.name || !propertyData.address || !propertyData.type) {
+        toast({
+          title: 'Error',
+          description: 'Please fill in all required fields (Name, Address, Type).',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const createData: CreatePropertyData = {
         name: propertyData.name,
         address: propertyData.address,
         type: propertyData.type,
         landlord_id: selectedLandlord.id,
-        rent_per_unit: propertyData.rent_per_unit ? parseFloat(propertyData.rent_per_unit) : undefined,
-        status: propertyData.status || 'active',
+        status: 'inactive', // Always set as available (inactive in DB)
       };
 
       await tenantService.createProperty(createData);
@@ -272,12 +262,51 @@ export const AgentLandlords = () => {
     }
   };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newPhotos: string[] = [];
+      const filePromises = Array.from(files).map(file => {
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            resolve(result);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      });
+
+      Promise.all(filePromises)
+        .then(results => {
+          setPropertyData(prev => ({
+            ...prev,
+            photos: [...prev.photos, ...results]
+          }));
+        })
+        .catch(error => {
+          console.error('Error reading files:', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to upload photos. Please try again.',
+            variant: 'destructive',
+          });
+        });
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPropertyData(prev => ({
+      ...prev,
+      photos: prev.photos.filter((_, i) => i !== index)
+    }));
+  };
+
   const filteredLandlords = landlords.filter(landlord => {
     const matchesSearch = landlord.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         landlord.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         landlord.company_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || landlord.status === filterStatus;
-    return matchesSearch && matchesStatus;
+                         landlord.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
   });
 
   if (loading) {
@@ -297,7 +326,10 @@ export const AgentLandlords = () => {
             {landlords.length} total landlords
           </p>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
+        <Button 
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-orange-600 hover:bg-orange-700 text-white"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Add Landlord
         </Button>
@@ -314,16 +346,6 @@ export const AgentLandlords = () => {
             className="pl-8"
           />
         </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Landlords Table */}
@@ -337,10 +359,8 @@ export const AgentLandlords = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Company</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Properties</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -356,14 +376,6 @@ export const AgentLandlords = () => {
                         <div className="font-medium">{landlord.name}</div>
                         <div className="text-sm text-muted-foreground">@{landlord.username}</div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{landlord.company_name || 'No company'}</div>
-                      {landlord.license_number && (
-                        <div className="text-sm text-muted-foreground">License: {landlord.license_number}</div>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -386,11 +398,6 @@ export const AgentLandlords = () => {
                     <div className="font-semibold">{landlord.total_properties || 0} Properties</div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={landlord.status === 'active' ? 'default' : 'secondary'}>
-                      {landlord.status || 'active'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
@@ -411,8 +418,9 @@ export const AgentLandlords = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDeleteLandlord(landlord)}
+                        onClick={() => openDeleteModal(landlord)}
                         title="Delete Landlord"
+                        className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -485,56 +493,6 @@ export const AgentLandlords = () => {
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   placeholder="Enter phone number"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company_name">Company Name</Label>
-                <Input
-                  id="company_name"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-                  placeholder="Enter company name"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({...formData, address: e.target.value})}
-                placeholder="Enter address"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="business_email">Business Email</Label>
-                <Input
-                  id="business_email"
-                  type="email"
-                  value={formData.business_email}
-                  onChange={(e) => setFormData({...formData, business_email: e.target.value})}
-                  placeholder="Enter business email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="business_phone">Business Phone</Label>
-                <Input
-                  id="business_phone"
-                  value={formData.business_phone}
-                  onChange={(e) => setFormData({...formData, business_phone: e.target.value})}
-                  placeholder="Enter business phone"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="license_number">License Number</Label>
-                <Input
-                  id="license_number"
-                  value={formData.license_number}
-                  onChange={(e) => setFormData({...formData, license_number: e.target.value})}
-                  placeholder="Enter license number"
                 />
               </div>
               <div className="space-y-2">
@@ -619,36 +577,18 @@ export const AgentLandlords = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit_address">Address</Label>
-              <Input
-                id="edit_address"
-                value={formData.address}
-                onChange={(e) => setFormData({...formData, address: e.target.value})}
-                placeholder="Enter address"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit_company_name">Company Name</Label>
-                <Input
-                  id="edit_company_name"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-                  placeholder="Enter company name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit_status">Status</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Label htmlFor="edit_preferred_payment_method">Payment Method</Label>
+              <Select value={formData.preferred_payment_method} onValueChange={(value) => setFormData({...formData, preferred_payment_method: value})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="check">Check</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="online">Online Payment</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -675,7 +615,7 @@ export const AgentLandlords = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="property_name">Property Name *</Label>
                 <Input
@@ -695,44 +635,85 @@ export const AgentLandlords = () => {
                     <SelectItem value="apartment">Apartment</SelectItem>
                     <SelectItem value="house">House</SelectItem>
                     <SelectItem value="condo">Condo</SelectItem>
+                    <SelectItem value="studio">Studio</SelectItem>
                     <SelectItem value="townhouse">Townhouse</SelectItem>
+                    <SelectItem value="duplex">Duplex</SelectItem>
+                    <SelectItem value="villa">Villa</SelectItem>
+                    <SelectItem value="penthouse">Penthouse</SelectItem>
+                    <SelectItem value="loft">Loft</SelectItem>
+                    <SelectItem value="cottage">Cottage</SelectItem>
+                    <SelectItem value="mansion">Mansion</SelectItem>
+                    <SelectItem value="bungalow">Bungalow</SelectItem>
+                    <SelectItem value="commercial">Commercial</SelectItem>
+                    <SelectItem value="office">Office</SelectItem>
+                    <SelectItem value="retail">Retail</SelectItem>
+                    <SelectItem value="warehouse">Warehouse</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="property_address">Address *</Label>
-              <Input
-                id="property_address"
-                value={propertyData.address}
-                onChange={(e) => setPropertyData({...propertyData, address: e.target.value})}
-                placeholder="Enter property address"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="property_rent">Monthly Rent ($)</Label>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="property_address">Property Address *</Label>
                 <Input
-                  id="property_rent"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={propertyData.rent_per_unit}
-                  onChange={(e) => setPropertyData({...propertyData, rent_per_unit: e.target.value})}
-                  placeholder="0.00"
+                  id="property_address"
+                  value={propertyData.address}
+                  onChange={(e) => setPropertyData({...propertyData, address: e.target.value})}
+                  placeholder="Enter full property address"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="property_status">Status</Label>
-                <Select value={propertyData.status} onValueChange={(value) => setPropertyData({...propertyData, status: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
+              
+              {/* Photo Upload Section */}
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="property_photos">Property Photos</Label>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="property_photos"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('property_photos')?.click()}
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload Photos
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {propertyData.photos.length} photo(s) selected
+                    </span>
+                  </div>
+                  
+                  {/* Photo Preview Grid */}
+                  {propertyData.photos.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {propertyData.photos.map((photo, index) => (
+                        <div key={index} className="relative group">
+                          <div className="aspect-square bg-muted rounded-lg overflow-hidden border">
+                            <img
+                              src={photo}
+                              alt={`Property photo ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute -top-2 -right-2 w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removePhoto(index)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -743,8 +724,64 @@ export const AgentLandlords = () => {
             <Button 
               onClick={handleAddProperty} 
               disabled={!propertyData.name || !propertyData.address || !propertyData.type}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               Add Property
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Landlord Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Landlord
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete the landlord account and all associated data.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <Crown className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-red-900">{selectedLandlord?.name}</p>
+                  <p className="text-sm text-red-700">@{selectedLandlord?.username}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-4 space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to delete <strong>{selectedLandlord?.name}</strong>?
+              </p>
+              <p className="text-sm text-muted-foreground">
+                This will also affect any properties and tenants associated with this landlord.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDeleteLandlord}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Landlord
             </Button>
           </DialogFooter>
         </DialogContent>

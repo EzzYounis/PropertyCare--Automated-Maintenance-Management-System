@@ -63,6 +63,7 @@ export interface Property {
   units?: number;
   rent_per_unit?: number;
   status: string;
+  photos?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -153,6 +154,7 @@ export interface CreatePropertyData {
   landlord_id?: string;
   rent_per_unit?: number;
   status?: string;
+  photos?: string[];
 }
 
 const tenantServiceObject = {
@@ -471,6 +473,8 @@ const tenantServiceObject = {
   // Update tenant
   async updateTenant(tenantId: string, updateData: Partial<CreateTenantData>): Promise<void> {
     try {
+      console.log('updateTenant called with:', { tenantId, updateData });
+
       // Get the current tenant data to track property changes
       let oldPropertyId: string | null = null;
       try {
@@ -483,12 +487,14 @@ const tenantServiceObject = {
 
         if (!getCurrentError && currentTenant) {
           oldPropertyId = (currentTenant as any).property_id;
+          console.log('Current tenant property_id:', oldPropertyId);
         }
       } catch (err) {
         // If we can't get current tenant data, continue without property status updates
         console.warn('Could not get current tenant property assignment:', err);
       }
       const newPropertyId = updateData.property_id;
+      console.log('New property_id will be:', newPropertyId);
 
       // If assigning to a new property, check if another tenant is already assigned
       if (newPropertyId && newPropertyId !== oldPropertyId) {
@@ -509,45 +515,67 @@ const tenantServiceObject = {
         }
       }
 
+      // Prepare update object with explicit null handling
+      const updateObject = {
+        name: updateData.name,
+        username: updateData.username,
+        email: updateData.email,
+        phone: updateData.phone,
+        address: updateData.address,
+        property_id: updateData.property_id,
+        landlord_id: updateData.landlord_id,
+        lease_start: updateData.lease_start,
+        lease_end: updateData.lease_end,
+        monthly_rent: updateData.monthly_rent,
+        emergency_contact_name: updateData.emergency_contact_name,
+        emergency_contact_phone: updateData.emergency_contact_phone,
+        tenant_status: updateData.tenant_status || 'active'
+      };
+
+      console.log('Updating tenant with tenant_status:', updateData.tenant_status);
+      console.log('Final updateObject tenant_status:', updateObject.tenant_status);
+      console.log('Updating profiles table with:', updateObject);
+
       // Update profiles table with all tenant data
       const { error: profileError } = await supabase
         .from('profiles' as any)
-        .update({
-          name: updateData.name,
-          username: updateData.username,
-          email: updateData.email,
-          phone: updateData.phone,
-          address: updateData.address,
-          property_id: updateData.property_id,
-          landlord_id: updateData.landlord_id,
-          lease_start: updateData.lease_start,
-          lease_end: updateData.lease_end,
-          monthly_rent: updateData.monthly_rent,
-          emergency_contact_name: updateData.emergency_contact_name,
-          emergency_contact_phone: updateData.emergency_contact_phone,
-          tenant_status: updateData.tenant_status || 'active'
-        })
+        .update(updateObject)
         .eq('id', tenantId);
 
       if (profileError) {
+        console.error('Profile update error:', profileError);
+        console.error('Profile update error details:', {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code
+        });
         throw new Error(`Failed to update tenant profile: ${profileError.message}`);
       }
 
+      console.log('Profile update successful');
+
       // Update property statuses if property assignment changed
       if (oldPropertyId !== newPropertyId) {
+        console.log('Property assignment changed, updating property statuses...');
         // Update old property status (if tenant was unassigned from it)
         if (oldPropertyId) {
+          console.log('Updating old property status:', oldPropertyId);
           await this.updatePropertyStatus(oldPropertyId);
         }
         
         // Update new property status (if tenant was assigned to it)
         if (newPropertyId) {
+          console.log('Updating new property status:', newPropertyId);
           await this.updatePropertyStatus(newPropertyId);
         }
       } else if (newPropertyId && updateData.monthly_rent !== undefined) {
         // If staying on the same property but rent changed, update property rent
+        console.log('Rent changed for same property, updating property status...');
         await this.updatePropertyStatus(newPropertyId);
       }
+
+      console.log('updateTenant completed successfully');
     } catch (error) {
       console.error('Error updating tenant:', error);
       throw error;
@@ -883,7 +911,8 @@ const tenantServiceObject = {
         landlord_id: propertyData.landlord_id,
         units: 1, // Always 1 unit per property
         rent_per_unit: propertyData.rent_per_unit || 0,
-        status: propertyData.status || 'active'
+        status: propertyData.status || 'active',
+        photos: propertyData.photos || []
       });
 
     if (error) {
@@ -1141,25 +1170,29 @@ const tenantServiceObject = {
       const enhancedRequests = requests.map((request: any) => {
         const tenantProfile = tenantProfiles?.find((t: any) => t.id === request.tenant_id);
         let landlordProfile = null;
+        let propertyProfile = null;
         
         if (tenantProfile) {
+          // Find the property for this tenant
+          if ((tenantProfile as any).property_id) {
+            propertyProfile = properties.find((p: any) => p.id === (tenantProfile as any).property_id);
+          }
+          
           // Try to get landlord directly from tenant
           if ((tenantProfile as any).landlord_id) {
             landlordProfile = landlordProfiles.find((l: any) => l.id === (tenantProfile as any).landlord_id);
           }
           
           // If no direct landlord, try through property
-          if (!landlordProfile && (tenantProfile as any).property_id) {
-            const property = properties.find((p: any) => p.id === (tenantProfile as any).property_id);
-            if (property && (property as any).landlord_id) {
-              landlordProfile = landlordProfiles.find((l: any) => l.id === (property as any).landlord_id);
-            }
+          if (!landlordProfile && propertyProfile && (propertyProfile as any).landlord_id) {
+            landlordProfile = landlordProfiles.find((l: any) => l.id === (propertyProfile as any).landlord_id);
           }
         }
 
         return {
           ...request,
           tenant_profile: tenantProfile,
+          property_profile: propertyProfile,
           landlord_profile: landlordProfile,
           landlord_id: landlordProfile?.id || null
         };
